@@ -28,7 +28,7 @@ export function WelcomeScreen() {
       if (session) {
         router.push("/journal");
       } else {
-        const { error } = await supabase.auth.signInWithOAuth({
+        const { data, error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
             redirectTo: `${getURL()}auth/callback`,
@@ -39,6 +39,11 @@ export function WelcomeScreen() {
           toast.error(getRandomMicrocopy("error"));
           console.error("❌ OAuth error:", error);
           setLoading(false);
+          return;
+        }
+
+        if (data?.url) {
+          router.push(data.url);
         }
       }
     } catch (error) {

@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("✅ Session created successfully");
-    return NextResponse.redirect(`${baseUrl}journal`);
+    const redirectUrl = baseUrl.endsWith("/")
+      ? `${baseUrl}journal`
+      : `${baseUrl}/journal`;
+    return NextResponse.redirect(redirectUrl);
   }
 
   console.warn("⚠️ No code provided in callback");

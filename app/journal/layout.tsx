@@ -1,6 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { EncryptionProvider } from "@/components/features/EncryptionProvider";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Journal",
+  description: "Your private journaling space. Write, reflect, and grow.",
+  robots: {
+    index: false, // Journal pages should not be indexed for privacy
+    follow: false,
+  },
+};
 
 export default async function JournalLayout({
   children,
