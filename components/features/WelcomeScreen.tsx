@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 
 import { getRandomMicrocopy } from "@/lib/microcopies";
 import { toast } from "sonner";
+import { getURL } from "@/lib/supabase/utils";
 
 export function WelcomeScreen() {
   const [loading, setLoading] = useState(false);
@@ -30,7 +31,7 @@ export function WelcomeScreen() {
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: `${window.location.origin}/auth/callback`,
+            redirectTo: `${getURL()}auth/callback`,
           },
         });
 
