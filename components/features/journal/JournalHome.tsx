@@ -83,21 +83,21 @@ export function JournalHome({
         </div>
 
         {/* User Profile Picture */}
-        <div className="flex-none">
+        <Link href="/profile" className="flex-none">
           {userImage ? (
             <motion.img
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               src={userImage}
               alt={userName}
-              className="w-12 h-12 rounded-full border-2 border-white/10 shadow-lg object-cover"
+              className="w-12 h-12 rounded-full border-2 border-white/10 shadow-lg object-cover hover:border-primary/30 transition-colors cursor-pointer"
             />
           ) : (
-            <div className="w-12 h-12 rounded-full border-2 border-white/5 bg-secondary/30 flex items-center justify-center text-muted-foreground font-bold">
+            <div className="w-12 h-12 rounded-full border-2 border-white/5 bg-secondary/30 flex items-center justify-center text-muted-foreground font-bold hover:border-primary/30 transition-colors cursor-pointer">
               {userName[0]}
             </div>
           )}
-        </div>
+        </Link>
       </header>
 
       {/* Main Content Area - Scrollable */}

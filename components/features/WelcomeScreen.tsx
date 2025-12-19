@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -49,7 +50,7 @@ export function WelcomeScreen() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center bg-background text-foreground">
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center bg-background text-foreground relative">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -63,6 +64,22 @@ export function WelcomeScreen() {
           <p className="text-xl md:text-2xl text-muted-foreground font-light leading-relaxed">
             A quiet place to put your thoughts down.
           </p>
+
+          {/* Feature highlights */}
+          <div className="text-sm text-muted-foreground space-y-2 mt-6 pt-6 border-t border-white/5">
+            <p className="flex items-center justify-center gap-2">
+              <span className="text-primary">🔒</span>
+              <span>End-to-end encrypted</span>
+            </p>
+            <p className="flex items-center justify-center gap-2">
+              <span className="text-primary">✨</span>
+              <span>Rich text editor</span>
+            </p>
+            <p className="flex items-center justify-center gap-2">
+              <span className="text-primary">🎨</span>
+              <span>Beautiful & minimal design</span>
+            </p>
+          </div>
         </div>
 
         <motion.div
@@ -79,6 +96,30 @@ export function WelcomeScreen() {
             {loading ? "Connecting..." : "Start writing"}
           </Button>
         </motion.div>
+      </motion.div>
+
+      {/* Legal footer */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1, duration: 0.8 }}
+        className="absolute bottom-6 left-0 right-0 text-center z-10"
+      >
+        <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+          <Link
+            href="/privacy-policy"
+            className="hover:text-foreground transition-colors"
+          >
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <Link
+            href="/terms"
+            className="hover:text-foreground transition-colors"
+          >
+            Terms of Service
+          </Link>
+        </div>
       </motion.div>
 
       {/* Ambient background glow */}
