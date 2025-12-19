@@ -20,6 +20,9 @@ import ImageExtension from "@tiptap/extension-image";
 import { createClient } from "@/lib/supabase/client";
 import { useEncryption } from "@/components/features/EncryptionProvider";
 import { encryptContent, decryptContent } from "@/lib/crypto";
+import { getRandomMicrocopy } from "@/lib/microcopies";
+import { toast } from "sonner";
+import { LoadingScreen } from "@/components/shared/LoadingScreen";
 
 const FONT_SIZES = [
   "prose-sm",
@@ -129,9 +132,7 @@ export function NewEntry({ initialData }: EditorProps) {
         setTimeout(checkScroll, 100);
       } catch (err) {
         console.error("Failed to decrypt entry:", err);
-        alert(
-          "Failed to decrypt this entry. Your PIN might be incorrect or the data is corrupted."
-        );
+        toast.error(getRandomMicrocopy("error"));
       } finally {
         setIsDecrypting(false);
       }
@@ -191,14 +192,15 @@ export function NewEntry({ initialData }: EditorProps) {
           throw error;
         }
 
+        toast.success(getRandomMicrocopy("saving"));
         router.push("/journal");
         router.refresh();
       } else {
-        console.error("No authenticated user found while saving.");
+        toast.error("You need to be logged in to save.");
       }
     } catch (error: any) {
       console.error("Error saving entry:", error);
-      alert(`Error saving: ${error.message || JSON.stringify(error)}`);
+      toast.error(getRandomMicrocopy("error"));
     } finally {
       setIsSaving(false);
     }
@@ -264,15 +266,13 @@ export function NewEntry({ initialData }: EditorProps) {
         className="flex-1 overflow-y-auto px-1 pt-2 pb-32 relative custom-scrollbar"
       >
         {isDecrypting ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="text-muted-foreground animate-pulse">
-              Decrypting your thoughts...
-            </p>
-          </div>
+          <LoadingScreen />
         ) : (
           <>
-            <input
+            <motion.input
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
               type="text"
               placeholder="Title (optional)"
               className="w-full bg-transparent border-none outline-none text-4xl font-bold font-outfit placeholder:text-muted-foreground/30 mb-6"
@@ -280,11 +280,14 @@ export function NewEntry({ initialData }: EditorProps) {
               onChange={(e) => setTitle(e.target.value)}
             />
 
-            <div
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
               className={`prose prose-zinc dark:prose-invert ${FONT_SIZES[fontSizeIndex]} max-w-none`}
             >
               <EditorContent editor={editor} />
-            </div>
+            </motion.div>
           </>
         )}
       </main>
@@ -293,9 +296,10 @@ export function NewEntry({ initialData }: EditorProps) {
       <AnimatePresence>
         {showScrollBottom && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            initial={{ opacity: 0, scale: 0.9, y: 5 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
+            exit={{ opacity: 0, scale: 0.9, y: 5 }}
+            transition={{ duration: 0.2 }}
             className="absolute bottom-28 right-4 z-50"
           >
             <Button

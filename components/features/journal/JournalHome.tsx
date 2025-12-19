@@ -9,6 +9,10 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useEncryption } from "@/components/features/EncryptionProvider";
 import { decryptContent } from "@/lib/crypto";
+import { getRandomMicrocopy } from "@/lib/microcopies";
+import { toast } from "sonner";
+import { LoadingScreen } from "@/components/shared/LoadingScreen";
+import { AnimatePresence } from "framer-motion";
 
 // Exported type for use in page.tsx
 export interface JournalEntry {
@@ -100,24 +104,47 @@ export function JournalHome({
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.preventDefault(); // Prevent navigation
+    e.preventDefault();
     e.stopPropagation();
 
-    if (!confirm("Are you sure you want to delete this entry?")) return;
+    // Show a confirmation toast with action buttons
+    toast("Are you sure you want to let go of this moment?", {
+      duration: 10000,
+      action: {
+        label: "Yes, let go",
+        onClick: async () => {
+          // Perform the delete
+          const deleteToastId = toast.loading(getRandomMicrocopy("loading"));
 
-    try {
-      // For soft delete as requested: just update the is_deleted flag
-      const { error } = await supabase
-        .from("entries")
-        .update({ is_deleted: true })
-        .eq("id", id);
+          try {
+            const { error } = await supabase
+              .from("entries")
+              .update({ is_deleted: true })
+              .eq("id", id);
 
-      if (error) throw error;
-      router.refresh();
-    } catch (err) {
-      console.error("Failed to delete", err);
-      alert("Failed to delete entry");
-    }
+            if (error) {
+              console.error("Delete error:", JSON.stringify(error, null, 2));
+              toast.error(getRandomMicrocopy("error"), { id: deleteToastId });
+              return;
+            }
+
+            toast.success(getRandomMicrocopy("deleting"), {
+              id: deleteToastId,
+            });
+            router.refresh();
+          } catch (err: any) {
+            console.error("Delete error:", JSON.stringify(err, null, 2));
+            toast.error(getRandomMicrocopy("error"), { id: deleteToastId });
+          }
+        },
+      },
+      cancel: {
+        label: "Keep it",
+        onClick: () => {
+          // Do nothing, just dismiss
+        },
+      },
+    });
   };
 
   return (
@@ -131,6 +158,9 @@ export function JournalHome({
           </p>
           <h1 className="text-4xl font-bold tracking-tight text-foreground/90 font-outfit">
             {greeting}, {userName}.
+          </h1>
+          <h1 className="text-xl font-normal tracking-tight text-foreground/40 font-outfit">
+            {getRandomMicrocopy("welcome")}
           </h1>
         </div>
 
@@ -155,12 +185,7 @@ export function JournalHome({
       {/* Main Content Area - Scrollable */}
       <div className="flex-1 overflow-y-auto pb-24 px-1 custom-scrollbar">
         {isDecrypting ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="text-muted-foreground animate-pulse font-nunito">
-              Decrypting your memories...
-            </p>
-          </div>
+          <LoadingScreen />
         ) : (
           <>
             {/* Stats or Quick Prompt */}
@@ -201,45 +226,49 @@ export function JournalHome({
               </motion.div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
-                {decryptedEntries.map((entry) => (
-                  <Link href={`/journal/${entry.id}`} key={entry.id}>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      whileHover={{ scale: 1.02 }}
-                      className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group flex flex-col h-full relative"
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider font-nunito">
-                          {new Date(entry.created_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                <AnimatePresence>
+                  {decryptedEntries.map((entry, index) => (
+                    <Link href={`/journal/${entry.id}`} key={entry.id}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group flex flex-col h-full relative"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider font-nunito">
+                            {new Date(entry.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+
+                          {/* Delete Button - Visible on Group Hover */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity -mt-2 -mr-2"
+                            onClick={(e) => handleDelete(e, entry.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {entry.title && (
+                          <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
+                            {entry.title}
+                          </h3>
+                        )}
+
+                        <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
+                          {stripHtml(entry.content)}
                         </p>
-
-                        {/* Delete Button - Visible on Group Hover */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity -mt-2 -mr-2"
-                          onClick={(e) => handleDelete(e, entry.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      {entry.title && (
-                        <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
-                          {entry.title}
-                        </h3>
-                      )}
-
-                      <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
-                        {stripHtml(entry.content)}
-                      </p>
-                    </motion.div>
-                  </Link>
-                ))}
+                      </motion.div>
+                    </Link>
+                  ))}
+                </AnimatePresence>
               </div>
             )}
           </>

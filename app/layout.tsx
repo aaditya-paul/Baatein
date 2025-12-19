@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Nunito, Outfit } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -24,7 +25,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${nunito.variable} ${outfit.variable}`}>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <Toaster
+          closeButton
+          position="top-center"
+          expand={false}
+          richColors
+          theme="dark"
+        />
+      </body>
     </html>
   );
 }

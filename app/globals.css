@@ -109,6 +109,17 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Custom text selection colors */
+::selection {
+  background-color: rgb(41, 40, 40); /* Primary with opacity */
+  color: var(--foreground);
+}
+
+::-moz-selection {
+  background-color: rgba(244, 244, 245, 0.2);
+  color: var(--foreground);
+}
+
 h1,
 h2,
 h3,
