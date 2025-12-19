@@ -1,11 +1,14 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus, Calendar, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useEncryption } from "@/components/features/EncryptionProvider";
+import { decryptContent } from "@/lib/crypto";
 
 // Exported type for use in page.tsx
 export interface JournalEntry {
@@ -26,8 +29,52 @@ export function JournalHome({
   userName = "User",
   userImage,
 }: JournalHomeProps) {
+  const { dek } = useEncryption();
+  const [decryptedEntries, setDecryptedEntries] = useState<JournalEntry[]>([]);
+  const [isDecrypting, setIsDecrypting] = useState(entries.length > 0);
   const router = useRouter();
   const supabase = createClient();
+
+  // Decrypt entries when they change or dek becomes available
+  useEffect(() => {
+    const decryptAll = async () => {
+      if (!dek || entries.length === 0) {
+        setDecryptedEntries([]);
+        setIsDecrypting(false);
+        return;
+      }
+
+      setIsDecrypting(true);
+      try {
+        const results = await Promise.all(
+          entries.map(async (entry) => {
+            try {
+              let decryptedTitle = null;
+              if (entry.title) {
+                decryptedTitle = await decryptContent(entry.title, dek);
+              }
+              const decryptedContent = await decryptContent(entry.content, dek);
+              return {
+                ...entry,
+                title: decryptedTitle,
+                content: decryptedContent,
+              };
+            } catch (err) {
+              console.error(`Failed to decrypt entry ${entry.id}:`, err);
+              return { ...entry, title: "🔒 Error decrypting", content: "" };
+            }
+          })
+        );
+        setDecryptedEntries(results);
+      } catch (err) {
+        console.error("Critical decryption error:", err);
+      } finally {
+        setIsDecrypting(false);
+      }
+    };
+
+    decryptAll();
+  }, [entries, dek]);
 
   // Format date: "Saturday, 20 December"
   const today = new Date();
@@ -59,7 +106,12 @@ export function JournalHome({
     if (!confirm("Are you sure you want to delete this entry?")) return;
 
     try {
-      const { error } = await supabase.from("entries").delete().eq("id", id);
+      // For soft delete as requested: just update the is_deleted flag
+      const { error } = await supabase
+        .from("entries")
+        .update({ is_deleted: true })
+        .eq("id", id);
+
       if (error) throw error;
       router.refresh();
     } catch (err) {
@@ -102,80 +154,95 @@ export function JournalHome({
 
       {/* Main Content Area - Scrollable */}
       <div className="flex-1 overflow-y-auto pb-24 px-1 custom-scrollbar">
-        {/* Stats or Quick Prompt */}
-        {entries.length > 0 && (
-          <div className="mb-8 p-6 rounded-3xl bg-linear-to-br from-secondary/50 to-secondary/10 border border-white/5 backdrop-blur-sm">
-            <h3 className="text-lg font-semibold mb-2">Daily Prompt</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              What is one small thing that made you smile today?
+        {isDecrypting ? (
+          <div className="flex flex-col items-center justify-center py-20 space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground animate-pulse font-nunito">
+              Decrypting your memories...
             </p>
           </div>
-        )}
-
-        {entries.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center py-16 space-y-6 text-center"
-          >
-            <div className="w-24 h-24 rounded-full bg-secondary/30 flex items-center justify-center mb-4">
-              <span className="text-4xl">✍️</span>
-            </div>
-            <div className="space-y-2 max-w-sm">
-              <h3 className="text-xl font-semibold">Your journal is empty</h3>
-              <p className="text-muted-foreground">
-                Capture your thoughts, ideas, and memories. Your space, your
-                rules.
-              </p>
-            </div>
-            <Link href="/journal/new">
-              <Button className="rounded-full px-8 h-12 text-base font-medium bg-foreground text-background hover:bg-foreground/90 transition-all">
-                Start Writing
-              </Button>
-            </Link>
-          </motion.div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {entries.map((entry) => (
-              <Link href={`/journal/${entry.id}`} key={entry.id}>
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  whileHover={{ scale: 1.02 }}
-                  className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group flex flex-col h-full relative"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                      {new Date(entry.created_at).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
+          <>
+            {/* Stats or Quick Prompt */}
+            {decryptedEntries.length > 0 && (
+              <div className="mb-8 p-6 rounded-3xl bg-linear-to-br from-secondary/50 to-secondary/10 border border-white/5 backdrop-blur-sm">
+                <h3 className="text-lg font-semibold mb-2 font-outfit">
+                  Daily Prompt
+                </h3>
+                <p className="text-muted-foreground leading-relaxed font-nunito">
+                  What is one small thing that made you smile today?
+                </p>
+              </div>
+            )}
 
-                    {/* Delete Button - Visible on Group Hover */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity -mt-2 -mr-2"
-                      onClick={(e) => handleDelete(e, entry.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {entry.title && (
-                    <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
-                      {entry.title}
-                    </h3>
-                  )}
-
-                  <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
-                    {stripHtml(entry.content)}
+            {decryptedEntries.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col items-center justify-center py-16 space-y-6 text-center"
+              >
+                <div className="w-24 h-24 rounded-full bg-secondary/30 flex items-center justify-center mb-4">
+                  <span className="text-4xl">✍️</span>
+                </div>
+                <div className="space-y-2 max-w-sm">
+                  <h3 className="text-xl font-semibold font-outfit">
+                    Your journal is empty
+                  </h3>
+                  <p className="text-muted-foreground font-nunito">
+                    Capture your thoughts, ideas, and memories. Your space, your
+                    rules.
                   </p>
-                </motion.div>
-              </Link>
-            ))}
-          </div>
+                </div>
+                <Link href="/journal/new">
+                  <Button className="rounded-full px-8 h-12 text-base font-medium bg-foreground text-background hover:bg-foreground/90 transition-all">
+                    Start Writing
+                  </Button>
+                </Link>
+              </motion.div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {decryptedEntries.map((entry) => (
+                  <Link href={`/journal/${entry.id}`} key={entry.id}>
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{ scale: 1.02 }}
+                      className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group flex flex-col h-full relative"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider font-nunito">
+                          {new Date(entry.created_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+
+                        {/* Delete Button - Visible on Group Hover */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity -mt-2 -mr-2"
+                          onClick={(e) => handleDelete(e, entry.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {entry.title && (
+                        <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
+                          {entry.title}
+                        </h3>
+                      )}
+
+                      <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
+                        {stripHtml(entry.content)}
+                      </p>
+                    </motion.div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

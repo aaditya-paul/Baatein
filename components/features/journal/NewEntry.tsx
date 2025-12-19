@@ -18,6 +18,8 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import ImageExtension from "@tiptap/extension-image";
 import { createClient } from "@/lib/supabase/client";
+import { useEncryption } from "@/components/features/EncryptionProvider";
+import { encryptContent, decryptContent } from "@/lib/crypto";
 
 const FONT_SIZES = [
   "prose-sm",
@@ -36,12 +38,14 @@ interface EditorProps {
 }
 
 export function NewEntry({ initialData }: EditorProps) {
-  const [title, setTitle] = useState(initialData?.title || "");
+  const { dek } = useEncryption();
+  const [title, setTitle] = useState("");
   const router = useRouter();
   const supabase = createClient();
   const [isSaving, setIsSaving] = useState(false);
+  const [isDecrypting, setIsDecrypting] = useState(!!initialData);
   const [fontSizeIndex, setFontSizeIndex] = useState(2); // Default to prose-lg
-  const [isEditorEmpty, setIsEditorEmpty] = useState(!initialData?.content);
+  const [isEditorEmpty, setIsEditorEmpty] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -56,7 +60,7 @@ export function NewEntry({ initialData }: EditorProps) {
       }),
       ImageExtension,
     ],
-    content: initialData?.content || "",
+    content: "",
     editorProps: {
       attributes: {
         class: "focus:outline-none max-w-none min-h-[300px]",
@@ -103,19 +107,41 @@ export function NewEntry({ initialData }: EditorProps) {
     }
   };
 
-  // Ensure editor content matches initialData if it loads late
+  // Decrypt and load initialData
   useEffect(() => {
-    if (editor && initialData && editor.getHTML() !== initialData.content) {
-      editor.commands.setContent(initialData.content);
-      setTitle(initialData.title || "");
-      setIsEditorEmpty(false);
-      // Brief delay to allow content to render before checking scroll
-      setTimeout(checkScroll, 100);
-    }
-  }, [initialData, editor]);
+    const loadAndDecrypt = async () => {
+      if (!initialData || !dek || !editor) return;
+
+      try {
+        setIsDecrypting(true);
+
+        let decryptedTitle = "";
+        if (initialData.title) {
+          decryptedTitle = await decryptContent(initialData.title, dek);
+        }
+
+        const decryptedContent = await decryptContent(initialData.content, dek);
+
+        setTitle(decryptedTitle);
+        editor.commands.setContent(decryptedContent);
+        setIsEditorEmpty(editor.isEmpty);
+        // Brief delay to allow content to render before checking scroll
+        setTimeout(checkScroll, 100);
+      } catch (err) {
+        console.error("Failed to decrypt entry:", err);
+        alert(
+          "Failed to decrypt this entry. Your PIN might be incorrect or the data is corrupted."
+        );
+      } finally {
+        setIsDecrypting(false);
+      }
+    };
+
+    loadAndDecrypt();
+  }, [initialData, dek, editor]);
 
   const handleSave = async () => {
-    if (!editor || isSaving) return;
+    if (!editor || isSaving || !dek) return;
 
     setIsSaving(true);
     const content = editor.getHTML();
@@ -132,14 +158,21 @@ export function NewEntry({ initialData }: EditorProps) {
       } = await supabase.auth.getUser();
 
       if (user) {
+        // ENCRYPT CONTENT BEFORE SAVING
+        const encryptedTitle = await encryptContent(
+          title.trim() || "Untitled",
+          dek
+        );
+        const encryptedContent = await encryptContent(content, dek);
+
         let error;
 
         if (initialData?.id) {
           const result = await supabase
             .from("entries")
             .update({
-              title: title.trim() || "Untitled",
-              content: content,
+              title: encryptedTitle,
+              content: encryptedContent,
               updated_at: new Date().toISOString(),
             })
             .eq("id", initialData.id);
@@ -147,8 +180,8 @@ export function NewEntry({ initialData }: EditorProps) {
         } else {
           const result = await supabase.from("entries").insert({
             user_id: user.id,
-            title: title.trim() || "Untitled",
-            content: content,
+            title: encryptedTitle,
+            content: encryptedContent,
           });
           error = result.error;
         }
@@ -230,19 +263,30 @@ export function NewEntry({ initialData }: EditorProps) {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto px-1 pt-2 pb-32 relative custom-scrollbar"
       >
-        <input
-          type="text"
-          placeholder="Title (optional)"
-          className="w-full bg-transparent border-none outline-none text-4xl font-bold font-outfit placeholder:text-muted-foreground/30 mb-6"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        {isDecrypting ? (
+          <div className="flex flex-col items-center justify-center py-20 space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground animate-pulse">
+              Decrypting your thoughts...
+            </p>
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder="Title (optional)"
+              className="w-full bg-transparent border-none outline-none text-4xl font-bold font-outfit placeholder:text-muted-foreground/30 mb-6"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
 
-        <div
-          className={`prose prose-zinc dark:prose-invert ${FONT_SIZES[fontSizeIndex]} max-w-none`}
-        >
-          <EditorContent editor={editor} />
-        </div>
+            <div
+              className={`prose prose-zinc dark:prose-invert ${FONT_SIZES[fontSizeIndex]} max-w-none`}
+            >
+              <EditorContent editor={editor} />
+            </div>
+          </>
+        )}
       </main>
 
       {/* Dynamic Scroll to Bottom Button */}

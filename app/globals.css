@@ -107,7 +107,6 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  overflow: hidden; /* Prevent parent-level scrolling */
 }
 
 h1,
