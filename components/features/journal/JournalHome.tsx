@@ -18,9 +18,14 @@ export interface JournalEntry {
 interface JournalHomeProps {
   entries: JournalEntry[];
   userName?: string;
+  userImage?: string;
 }
 
-export function JournalHome({ entries, userName = "User" }: JournalHomeProps) {
+export function JournalHome({
+  entries,
+  userName = "User",
+  userImage,
+}: JournalHomeProps) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -66,7 +71,7 @@ export function JournalHome({ entries, userName = "User" }: JournalHomeProps) {
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
       {/* Fixed Header Section */}
-      <header className="flex-none pt-2 pb-6 px-1 flex justify-between items-start">
+      <header className="flex-none pt-2 pb-6 px-1 flex justify-between items-center">
         <div className="space-y-1">
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider flex items-center gap-2">
             <Calendar className="w-4 h-4" />
@@ -75,6 +80,23 @@ export function JournalHome({ entries, userName = "User" }: JournalHomeProps) {
           <h1 className="text-4xl font-bold tracking-tight text-foreground/90 font-outfit">
             {greeting}, {userName}.
           </h1>
+        </div>
+
+        {/* User Profile Picture */}
+        <div className="flex-none">
+          {userImage ? (
+            <motion.img
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              src={userImage}
+              alt={userName}
+              className="w-12 h-12 rounded-full border-2 border-white/10 shadow-lg object-cover"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full border-2 border-white/5 bg-secondary/30 flex items-center justify-center text-muted-foreground font-bold">
+              {userName[0]}
+            </div>
+          )}
         </div>
       </header>
 

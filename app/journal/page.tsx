@@ -18,5 +18,13 @@ export default async function JournalPage() {
     user?.email?.split("@")[0] ||
     "User";
 
-  return <JournalHome entries={entries || []} userName={userName} />;
+  const userImage = user?.user_metadata?.avatar_url;
+
+  return (
+    <JournalHome
+      entries={entries || []}
+      userName={userName}
+      userImage={userImage}
+    />
+  );
 }
