@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Plus, Calendar, Trash2 } from "lucide-react";
+import { Plus, Calendar, Trash2, LayoutGrid, List } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -20,6 +20,7 @@ export interface JournalEntry {
   title: string | null;
   content: string;
   created_at: string; // Supabase returns string
+  is_deleted?: boolean;
 }
 
 interface JournalHomeProps {
@@ -35,6 +36,7 @@ export function JournalHome({
 }: JournalHomeProps) {
   const { dek } = useEncryption();
   const [decryptedEntries, setDecryptedEntries] = useState<JournalEntry[]>([]);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isDecrypting, setIsDecrypting] = useState(entries.length > 0);
   const router = useRouter();
   const supabase = createClient();
@@ -51,23 +53,28 @@ export function JournalHome({
       setIsDecrypting(true);
       try {
         const results = await Promise.all(
-          entries.map(async (entry) => {
-            try {
-              let decryptedTitle = null;
-              if (entry.title) {
-                decryptedTitle = await decryptContent(entry.title, dek);
+          entries
+            .filter((e) => !e.is_deleted) // Filter out deleted entries immediately
+            .map(async (entry) => {
+              try {
+                let decryptedTitle = null;
+                if (entry.title) {
+                  decryptedTitle = await decryptContent(entry.title, dek);
+                }
+                const decryptedContent = await decryptContent(
+                  entry.content,
+                  dek
+                );
+                return {
+                  ...entry,
+                  title: decryptedTitle,
+                  content: decryptedContent,
+                };
+              } catch (err) {
+                console.error(`Failed to decrypt entry ${entry.id}:`, err);
+                return { ...entry, title: "🔒 Error decrypting", content: "" };
               }
-              const decryptedContent = await decryptContent(entry.content, dek);
-              return {
-                ...entry,
-                title: decryptedTitle,
-                content: decryptedContent,
-              };
-            } catch (err) {
-              console.error(`Failed to decrypt entry ${entry.id}:`, err);
-              return { ...entry, title: "🔒 Error decrypting", content: "" };
-            }
-          })
+            })
         );
         setDecryptedEntries(results);
       } catch (err) {
@@ -131,6 +138,8 @@ export function JournalHome({
             toast.success(getRandomMicrocopy("deleting"), {
               id: deleteToastId,
             });
+            // Update local state to make it disappear instantly
+            setDecryptedEntries((prev) => prev.filter((e) => e.id !== id));
             router.refresh();
           } catch (err: any) {
             console.error("Delete error:", JSON.stringify(err, null, 2));
@@ -164,22 +173,50 @@ export function JournalHome({
           </h1>
         </div>
 
-        {/* User Profile Picture */}
-        <Link href="/profile" className="flex-none">
-          {userImage ? (
-            <motion.img
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              src={userImage}
-              alt={userName}
-              className="w-12 h-12 rounded-full border-2 border-white/10 shadow-lg object-cover hover:border-primary/30 transition-colors cursor-pointer"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-full border-2 border-white/5 bg-secondary/30 flex items-center justify-center text-muted-foreground font-bold hover:border-primary/30 transition-colors cursor-pointer">
-              {userName[0]}
-            </div>
-          )}
-        </Link>
+        <div className="flex items-center gap-3">
+          {/* View Mode Toggle */}
+          <div className="flex bg-secondary/20 p-1 rounded-full border border-white/5 mr-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-8 w-8 rounded-full transition-all ${
+                viewMode === "grid"
+                  ? "bg-white/10 text-foreground"
+                  : "text-muted-foreground"
+              }`}
+              onClick={() => setViewMode("grid")}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-8 w-8 rounded-full transition-all ${
+                viewMode === "list"
+                  ? "bg-white/10 text-foreground"
+                  : "text-muted-foreground"
+              }`}
+              onClick={() => setViewMode("list")}
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
+          <Link href="/profile" className="flex-none">
+            {userImage ? (
+              <motion.img
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                src={userImage}
+                alt={userName}
+                className="w-12 h-12 rounded-full border-2 border-white/10 shadow-lg object-cover hover:border-primary/30 transition-colors cursor-pointer"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full border-2 border-white/5 bg-secondary/30 flex items-center justify-center text-muted-foreground font-bold hover:border-primary/30 transition-colors cursor-pointer">
+                {userName[0]}
+              </div>
+            )}
+          </Link>
+        </div>
       </header>
 
       {/* Main Content Area - Scrollable */}
@@ -191,11 +228,11 @@ export function JournalHome({
             {/* Stats or Quick Prompt */}
             {decryptedEntries.length > 0 && (
               <div className="mb-8 p-6 rounded-3xl bg-linear-to-br from-secondary/50 to-secondary/10 border border-white/5 backdrop-blur-sm">
-                <h3 className="text-lg font-semibold mb-2 font-outfit">
+                <h3 className="text-lg font-semibold mb-2 font-outfit text-foreground/80">
                   Daily Prompt
                 </h3>
-                <p className="text-muted-foreground leading-relaxed font-nunito">
-                  What is one small thing that made you smile today?
+                <p className="text-muted-foreground leading-relaxed font-nunito italic">
+                  "{getRandomMicrocopy("prompts")}"
                 </p>
               </div>
             )}
@@ -225,46 +262,98 @@ export function JournalHome({
                 </Link>
               </motion.div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                <AnimatePresence>
+              <div
+                className={
+                  viewMode === "grid"
+                    ? "grid gap-4 md:grid-cols-2"
+                    : "flex flex-col gap-3"
+                }
+              >
+                <AnimatePresence mode="popLayout">
                   {decryptedEntries.map((entry, index) => (
                     <Link href={`/journal/${entry.id}`} key={entry.id}>
                       <motion.div
+                        layout
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{
+                          duration: 0.3,
+                          delay: viewMode === "grid" ? index * 0.05 : 0,
+                        }}
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
-                        className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group flex flex-col h-full relative"
+                        className={`${
+                          viewMode === "grid"
+                            ? "p-6 rounded-3xl"
+                            : "p-4 rounded-2xl flex items-center gap-4"
+                        } bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group relative`}
                       >
-                        <div className="flex justify-between items-start mb-3">
-                          <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider font-nunito">
-                            {new Date(entry.created_at).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
+                        {viewMode === "grid" ? (
+                          <>
+                            <div className="flex justify-between items-start mb-3">
+                              <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider font-nunito">
+                                {new Date(entry.created_at).toLocaleTimeString(
+                                  [],
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  }
+                                )}
+                              </p>
 
-                          {/* Delete Button - Visible on Group Hover */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity -mt-2 -mr-2"
-                            onClick={(e) => handleDelete(e, entry.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity -mt-2 -mr-2"
+                                onClick={(e) => handleDelete(e, entry.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
 
-                        {entry.title && (
-                          <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
-                            {entry.title}
-                          </h3>
+                            {entry.title && (
+                              <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
+                                {entry.title}
+                              </h3>
+                            )}
+
+                            <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
+                              {stripHtml(entry.content)}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-muted-foreground text-[10px] font-medium uppercase tracking-tighter font-nunito flex-none">
+                                  {new Date(
+                                    entry.created_at
+                                  ).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                                {entry.title && (
+                                  <h3 className="text-base font-bold font-outfit text-foreground/90 truncate">
+                                    {entry.title}
+                                  </h3>
+                                )}
+                              </div>
+                              <p className="line-clamp-1 text-sm text-muted-foreground group-hover:text-foreground/70 transition-colors font-nunito">
+                                {stripHtml(entry.content)}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity flex-none"
+                              onClick={(e) => handleDelete(e, entry.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
-
-                        <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
-                          {stripHtml(entry.content)}
-                        </p>
                       </motion.div>
                     </Link>
                   ))}
