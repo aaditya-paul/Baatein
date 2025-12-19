@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,9 +9,10 @@ import {
   Bold,
   Italic,
   List,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -26,13 +27,24 @@ const FONT_SIZES = [
   "prose-2xl",
 ];
 
-export function NewEntry() {
-  const [title, setTitle] = useState("");
+interface EditorProps {
+  initialData?: {
+    id: string;
+    title: string | null;
+    content: string;
+  };
+}
+
+export function NewEntry({ initialData }: EditorProps) {
+  const [title, setTitle] = useState(initialData?.title || "");
   const router = useRouter();
   const supabase = createClient();
   const [isSaving, setIsSaving] = useState(false);
-  const [fontSizeIndex, setFontSizeIndex] = useState(2); // Default to prose-lg (index 2)
-  const [isEditorEmpty, setIsEditorEmpty] = useState(true);
+  const [fontSizeIndex, setFontSizeIndex] = useState(2); // Default to prose-lg
+  const [isEditorEmpty, setIsEditorEmpty] = useState(!initialData?.content);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -44,6 +56,7 @@ export function NewEntry() {
       }),
       ImageExtension,
     ],
+    content: initialData?.content || "",
     editorProps: {
       attributes: {
         class: "focus:outline-none max-w-none min-h-[300px]",
@@ -52,15 +65,61 @@ export function NewEntry() {
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
       setIsEditorEmpty(editor.isEmpty);
+      checkScroll();
     },
   });
+
+  // Check scroll position to show/hide the "Scroll to Bottom" button
+  const checkScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+
+    // Show if there is content to scroll and we're not at the bottom (with some threshold)
+    const isLongContent = scrollHeight > clientHeight + 50;
+    const isNotAtBottom = scrollTop + clientHeight < scrollHeight - 100;
+
+    setShowScrollBottom(isLongContent && isNotAtBottom);
+  };
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.addEventListener("scroll", checkScroll);
+      // Run once to initialize
+      checkScroll();
+      return () => container.removeEventListener("scroll", checkScroll);
+    }
+  }, []);
+
+  const scrollToBottom = () => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  // Ensure editor content matches initialData if it loads late
+  useEffect(() => {
+    if (editor && initialData && editor.getHTML() !== initialData.content) {
+      editor.commands.setContent(initialData.content);
+      setTitle(initialData.title || "");
+      setIsEditorEmpty(false);
+      // Brief delay to allow content to render before checking scroll
+      setTimeout(checkScroll, 100);
+    }
+  }, [initialData, editor]);
 
   const handleSave = async () => {
     if (!editor || isSaving) return;
 
     setIsSaving(true);
-    const content = editor.getHTML(); // Get HTML content
-    const plainText = editor.getText(); // Get plain text for validation
+    const content = editor.getHTML();
+    const plainText = editor.getText();
 
     if (!plainText.trim() && !title.trim()) {
       setIsSaving(false);
@@ -73,17 +132,29 @@ export function NewEntry() {
       } = await supabase.auth.getUser();
 
       if (user) {
-        const { error } = await supabase.from("entries").insert({
-          user_id: user.id,
-          title: title.trim() || "Untitled",
-          content: content,
-        });
+        let error;
+
+        if (initialData?.id) {
+          const result = await supabase
+            .from("entries")
+            .update({
+              title: title.trim() || "Untitled",
+              content: content,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", initialData.id);
+          error = result.error;
+        } else {
+          const result = await supabase.from("entries").insert({
+            user_id: user.id,
+            title: title.trim() || "Untitled",
+            content: content,
+          });
+          error = result.error;
+        }
 
         if (error) {
-          console.error(
-            "Supabase Insert Error:",
-            JSON.stringify(error, null, 2)
-          );
+          console.error("Supabase Error:", JSON.stringify(error, null, 2));
           throw error;
         }
 
@@ -113,19 +184,18 @@ export function NewEntry() {
 
   const increaseFontSize = () => {
     setFontSizeIndex((prev) => Math.min(prev + 1, FONT_SIZES.length - 1));
+    setTimeout(checkScroll, 0); // Check scroll after font change
   };
 
   const decreaseFontSize = () => {
     setFontSizeIndex((prev) => Math.max(prev - 1, 0));
+    setTimeout(checkScroll, 0); // Check scroll after font change
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col h-full max-w-3xl mx-auto"
-    >
-      <header className="flex items-center justify-between py-6">
+    <div className="h-full flex flex-col relative max-w-3xl mx-auto overflow-hidden">
+      {/* Fixed Header */}
+      <header className="flex-none flex items-center justify-between py-6 bg-background/50 backdrop-blur-sm z-50">
         <Link href="/journal">
           <Button
             variant="ghost"
@@ -137,11 +207,13 @@ export function NewEntry() {
         </Link>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground mr-2 font-medium">
-            {new Date().toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
+            {initialData
+              ? "Editing"
+              : new Date().toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
           </span>
           <Button
             onClick={handleSave}
@@ -153,8 +225,11 @@ export function NewEntry() {
         </div>
       </header>
 
-      <main className="flex-1 relative flex flex-col overflow-y-auto px-1 pb-20">
-        {/* Title Input */}
+      {/* Scrollable Content Area */}
+      <main
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-1 pt-2 pb-32 relative custom-scrollbar"
+      >
         <input
           type="text"
           placeholder="Title (optional)"
@@ -163,17 +238,37 @@ export function NewEntry() {
           onChange={(e) => setTitle(e.target.value)}
         />
 
-        {/* Tiptap Editor */}
         <div
-          className={`flex-1 prose prose-zinc dark:prose-invert ${FONT_SIZES[fontSizeIndex]} max-w-none`}
+          className={`prose prose-zinc dark:prose-invert ${FONT_SIZES[fontSizeIndex]} max-w-none`}
         >
           <EditorContent editor={editor} />
         </div>
+      </main>
 
-        {/* Bottom Toolbar */}
-        <div className="sticky bottom-4 py-3 px-4 bg-background/80 backdrop-blur-md border border-white/5 rounded-full flex items-center justify-between mt-auto mb-4 mx-auto w-full max-w-md shadow-2xl z-50">
+      {/* Dynamic Scroll to Bottom Button */}
+      <AnimatePresence>
+        {showScrollBottom && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 10 }}
+            className="absolute bottom-28 right-4 z-50"
+          >
+            <Button
+              size="icon"
+              className="h-10 w-10 rounded-full shadow-lg bg-secondary/80 backdrop-blur-md border border-white/10 hover:bg-secondary text-foreground"
+              onClick={scrollToBottom}
+            >
+              <ChevronDown className="h-5 w-5" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Fixed Bottom Toolbar */}
+      <div className="flex-none py-4 bg-background/50 backdrop-blur-sm z-50">
+        <div className="py-3 px-4 bg-background/80 backdrop-blur-md border border-white/5 rounded-full flex items-center justify-between mx-auto w-full max-w-md shadow-2xl">
           <div className="flex gap-1 items-center">
-            {/* Formatting Tools */}
             <Button
               variant="ghost"
               size="icon"
@@ -201,10 +296,7 @@ export function NewEntry() {
             >
               <List className="h-4 w-4" />
             </Button>
-
             <div className="w-px h-6 bg-white/10 mx-2" />
-
-            {/* Font Size Tools */}
             <div className="flex items-center gap-0.5">
               <Button
                 variant="ghost"
@@ -225,10 +317,7 @@ export function NewEntry() {
                 <span className="text-sm font-bold">A+</span>
               </Button>
             </div>
-
             <div className="w-px h-6 bg-white/10 mx-2" />
-
-            {/* Media Tools */}
             <Button
               variant="ghost"
               size="icon"
@@ -239,7 +328,7 @@ export function NewEntry() {
             </Button>
           </div>
         </div>
-      </main>
-    </motion.div>
+      </div>
+    </div>
   );
 }

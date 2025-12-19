@@ -2,8 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Plus, Calendar } from "lucide-react";
+import { Plus, Calendar, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // Exported type for use in page.tsx
 export interface JournalEntry {
@@ -19,6 +21,9 @@ interface JournalHomeProps {
 }
 
 export function JournalHome({ entries, userName = "User" }: JournalHomeProps) {
+  const router = useRouter();
+  const supabase = createClient();
+
   // Format date: "Saturday, 20 December"
   const today = new Date();
   const dateString = today.toLocaleDateString("en-GB", {
@@ -42,9 +47,26 @@ export function JournalHome({ entries, userName = "User" }: JournalHomeProps) {
     return tmp.textContent || tmp.innerText || "";
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault(); // Prevent navigation
+    e.stopPropagation();
+
+    if (!confirm("Are you sure you want to delete this entry?")) return;
+
+    try {
+      const { error } = await supabase.from("entries").delete().eq("id", id);
+      if (error) throw error;
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to delete", err);
+      alert("Failed to delete entry");
+    }
+  };
+
   return (
-    <div className="h-full pb-20 relative">
-      <header className="pt-2 pb-6 px-1 flex justify-between items-start">
+    <div className="h-full flex flex-col relative overflow-hidden">
+      {/* Fixed Header Section */}
+      <header className="flex-none pt-2 pb-6 px-1 flex justify-between items-start">
         <div className="space-y-1">
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider flex items-center gap-2">
             <Calendar className="w-4 h-4" />
@@ -56,70 +78,84 @@ export function JournalHome({ entries, userName = "User" }: JournalHomeProps) {
         </div>
       </header>
 
-      {/* Stats or Quick Prompt */}
-      {entries.length > 0 && (
-        <div className="mb-8 p-6 rounded-3xl bg-linear-to-br from-secondary/50 to-secondary/10 border border-white/5 backdrop-blur-sm">
-          <h3 className="text-lg font-semibold mb-2">Daily Prompt</h3>
-          <p className="text-muted-foreground leading-relaxed">
-            What is one small thing that made you smile today?
-          </p>
-        </div>
-      )}
-
-      {entries.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center justify-center py-16 space-y-6 text-center"
-        >
-          <div className="w-24 h-24 rounded-full bg-secondary/30 flex items-center justify-center mb-4">
-            <span className="text-4xl">✍️</span>
-          </div>
-          <div className="space-y-2 max-w-sm">
-            <h3 className="text-xl font-semibold">Your journal is empty</h3>
-            <p className="text-muted-foreground">
-              Capture your thoughts, ideas, and memories. Your space, your
-              rules.
+      {/* Main Content Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto pb-24 px-1 custom-scrollbar">
+        {/* Stats or Quick Prompt */}
+        {entries.length > 0 && (
+          <div className="mb-8 p-6 rounded-3xl bg-linear-to-br from-secondary/50 to-secondary/10 border border-white/5 backdrop-blur-sm">
+            <h3 className="text-lg font-semibold mb-2">Daily Prompt</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              What is one small thing that made you smile today?
             </p>
           </div>
-          <Link href="/journal/new">
-            <Button className="rounded-full px-8 h-12 text-base font-medium bg-foreground text-background hover:bg-foreground/90 transition-all">
-              Start Writing
-            </Button>
-          </Link>
-        </motion.div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {entries.map((entry) => (
-            <motion.div
-              key={entry.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileHover={{ scale: 1.02 }}
-              className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group flex flex-col h-full"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                  {new Date(entry.created_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </div>
+        )}
 
-              {entry.title && (
-                <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
-                  {entry.title}
-                </h3>
-              )}
-
-              <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
-                {stripHtml(entry.content)}
+        {entries.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-16 space-y-6 text-center"
+          >
+            <div className="w-24 h-24 rounded-full bg-secondary/30 flex items-center justify-center mb-4">
+              <span className="text-4xl">✍️</span>
+            </div>
+            <div className="space-y-2 max-w-sm">
+              <h3 className="text-xl font-semibold">Your journal is empty</h3>
+              <p className="text-muted-foreground">
+                Capture your thoughts, ideas, and memories. Your space, your
+                rules.
               </p>
-            </motion.div>
-          ))}
-        </div>
-      )}
+            </div>
+            <Link href="/journal/new">
+              <Button className="rounded-full px-8 h-12 text-base font-medium bg-foreground text-background hover:bg-foreground/90 transition-all">
+                Start Writing
+              </Button>
+            </Link>
+          </motion.div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {entries.map((entry) => (
+              <Link href={`/journal/${entry.id}`} key={entry.id}>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileHover={{ scale: 1.02 }}
+                  className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group flex flex-col h-full relative"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                      {new Date(entry.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+
+                    {/* Delete Button - Visible on Group Hover */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity -mt-2 -mr-2"
+                      onClick={(e) => handleDelete(e, entry.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {entry.title && (
+                    <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
+                      {entry.title}
+                    </h3>
+                  )}
+
+                  <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
+                    {stripHtml(entry.content)}
+                  </p>
+                </motion.div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Floating Action Button */}
       <motion.div
