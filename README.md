@@ -50,6 +50,7 @@ Baatein is a minimalist journaling application designed to provide a calm, distr
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your-project-url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   NEXT_PUBLIC_SITE_URL=http://localhost:3000 # or your production URL
    ```
 
    Get these values from your [Supabase Dashboard](https://supabase.com/dashboard/project/_/settings/api)
