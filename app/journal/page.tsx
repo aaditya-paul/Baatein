@@ -1,8 +1,22 @@
 import { JournalHome } from "@/components/features/journal";
+import { createClient } from "@/lib/supabase/server";
 
-export default function JournalPage() {
-  // TODO: Fetch real entries from Supabase
-  const entries: any[] = [];
+export default async function JournalPage() {
+  const supabase = await createClient();
 
-  return <JournalHome entries={entries} />;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: entries } = await supabase
+    .from("entries")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  const userName =
+    user?.user_metadata?.full_name?.split(" ")[0] ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  return <JournalHome entries={entries || []} userName={userName} />;
 }

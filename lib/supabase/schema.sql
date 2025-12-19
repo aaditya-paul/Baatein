@@ -2,6 +2,7 @@
 create table entries (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users not null,
+  title text,
   content text not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null

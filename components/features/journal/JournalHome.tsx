@@ -2,26 +2,30 @@
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Plus, Image as ImageIcon, Calendar } from "lucide-react";
+import { Plus, Calendar } from "lucide-react";
 import { motion } from "framer-motion";
 
-interface JournalEntry {
+// Exported type for use in page.tsx
+export interface JournalEntry {
   id: string;
+  title: string | null;
   content: string;
-  createdAt: Date;
+  created_at: string; // Supabase returns string
 }
 
 interface JournalHomeProps {
   entries: JournalEntry[];
+  userName?: string;
 }
 
-export function JournalHome({ entries }: JournalHomeProps) {
+export function JournalHome({ entries, userName = "User" }: JournalHomeProps) {
   // Format date: "Saturday, 20 December"
   const today = new Date();
   const dateString = today.toLocaleDateString("en-GB", {
     weekday: "long",
     day: "numeric",
     month: "long",
+    year: "numeric",
   });
 
   // Dynamic greeting based on time of day
@@ -30,25 +34,37 @@ export function JournalHome({ entries }: JournalHomeProps) {
   if (hour >= 12 && hour < 17) greeting = "Good afternoon";
   else if (hour >= 17) greeting = "Good evening";
 
+  // Helper to strip HTML tags for preview
+  const stripHtml = (html: string) => {
+    if (typeof window === "undefined") return ""; // Server-side safety
+    const tmp = document.createElement("DIV");
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || "";
+  };
+
   return (
-    <div className="min-h-screen pb-20 relative">
-      <header className="pt-8 pb-6 px-1 space-y-1">
-        <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider flex items-center gap-2">
-          <Calendar className="w-4 h-4" />
-          {dateString}
-        </p>
-        <h1 className="text-4xl font-bold tracking-tight text-foreground/90 font-outfit">
-          {greeting}, User.
-        </h1>
+    <div className="h-full pb-20 relative">
+      <header className="pt-2 pb-6 px-1 flex justify-between items-start">
+        <div className="space-y-1">
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            {dateString}
+          </p>
+          <h1 className="text-4xl font-bold tracking-tight text-foreground/90 font-outfit">
+            {greeting}, {userName}.
+          </h1>
+        </div>
       </header>
 
-      {/* Stats or Quick Prompt (Optional, adds visual interest) */}
-      <div className="mb-8 p-6 rounded-3xl bg-gradient-to-br from-secondary/50 to-secondary/10 border border-white/5 backdrop-blur-sm">
-        <h3 className="text-lg font-semibold mb-2">Daily Prompt</h3>
-        <p className="text-muted-foreground leading-relaxed">
-          What is one small thing that made you smile today?
-        </p>
-      </div>
+      {/* Stats or Quick Prompt */}
+      {entries.length > 0 && (
+        <div className="mb-8 p-6 rounded-3xl bg-linear-to-br from-secondary/50 to-secondary/10 border border-white/5 backdrop-blur-sm">
+          <h3 className="text-lg font-semibold mb-2">Daily Prompt</h3>
+          <p className="text-muted-foreground leading-relaxed">
+            What is one small thing that made you smile today?
+          </p>
+        </div>
+      )}
 
       {entries.length === 0 ? (
         <motion.div
@@ -74,14 +90,34 @@ export function JournalHome({ entries }: JournalHomeProps) {
         </motion.div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {/* TODO: Use real entry cards here */}
-          <div className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-colors cursor-pointer group">
-            <p className="text-muted-foreground text-sm mb-3">10:30 AM</p>
-            <p className="line-clamp-3 text-lg leading-relaxed text-foreground/90 group-hover:text-foreground transition-colors">
-              Sample entry content would go here. Just verifying the grid layout
-              looks good without being "boring".
-            </p>
-          </div>
+          {entries.map((entry) => (
+            <motion.div
+              key={entry.id}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ scale: 1.02 }}
+              className="p-6 rounded-3xl bg-secondary/20 border border-white/5 hover:bg-secondary/30 transition-all cursor-pointer group flex flex-col h-full"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                  {new Date(entry.created_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+
+              {entry.title && (
+                <h3 className="text-xl font-bold mb-2 font-outfit text-foreground/90 group-hover:text-foreground">
+                  {entry.title}
+                </h3>
+              )}
+
+              <p className="line-clamp-4 text-base leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors font-nunito">
+                {stripHtml(entry.content)}
+              </p>
+            </motion.div>
+          ))}
         </div>
       )}
 
