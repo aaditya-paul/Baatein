@@ -1,190 +1,155 @@
-import { useState, useRef, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ActivityIndicator,
-  Animated,
-  Alert,
-} from "react-native";
-import { useRouter, Link } from "expo-router";
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
+
 import { getRandomMicrocopy } from "@/lib/microcopies";
+import { toast } from "sonner";
 import { getURL } from "@/lib/supabase/utils";
 
-export default function WelcomeScreen() {
+export function WelcomeScreen() {
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
   const router = useRouter();
-
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(15)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slide, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
 
   const handleStart = async () => {
     setLoading(true);
 
     try {
+      // Check if user is authenticated
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (session) {
-        router.replace("/journal");
-        return;
-      }
+        router.push("/journal");
+      } else {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: `${getURL()}auth/callback`,
+          },
+        });
 
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${getURL()}auth/callback`,
-        },
-      });
+        if (error) {
+          toast.error(getRandomMicrocopy("error"));
+          console.error("❌ OAuth error:", error);
+          setLoading(false);
+          return;
+        }
 
-      if (error) {
-        Alert.alert("Error", getRandomMicrocopy("error"));
-        setLoading(false);
+        if (data?.url) {
+          router.push(data.url);
+        }
       }
-    } catch (err) {
-      Alert.alert("Error", getRandomMicrocopy("error"));
+    } catch (error) {
+      toast.error(getRandomMicrocopy("error"));
+      console.error("❌ Auth error:", error);
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View
-        style={[
-          styles.content,
-          { opacity: fade, transform: [{ translateY: slide }] },
-        ]}
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center bg-background text-foreground relative overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="flex flex-col items-center space-y-12 max-w-xl relative z-10"
       >
-        <Text style={styles.title}>Baatein.</Text>
+        <div className="space-y-6">
+          <motion.h1
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.15, duration: 0.6 }}
+            className="text-6xl md:text-8xl font-sans font-bold tracking-tighter text-primary drop-shadow-sm select-none"
+          >
+            Baatein.
+          </motion.h1>
 
-        <Text style={styles.subtitle}>Your thoughts, safely held.</Text>
+          <motion.div
+            className="space-y-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <h2 className="text-xl md:text-2xl text-foreground font-medium tracking-tight">
+              Your thoughts, safely held.
+            </h2>
+            <p className="text-base md:text-lg text-muted-foreground/80 font-nunito leading-relaxed max-w-md mx-auto">
+              A private, judgment-free space designed for quiet reflection and
+              gentle self-understanding.
+            </p>
+          </motion.div>
 
-        <Text style={styles.description}>
-          A private, judgment-free space designed for quiet reflection and
-          gentle self-understanding.
-        </Text>
+          {/* Minimal Feature Row */}
+          <motion.div
+            className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 pt-12 text-sm text-muted-foreground/60 font-medium"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-primary/50">✦</span> E2E Encrypted
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-primary/50">✦</span> Safe Space
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-primary/50">✦</span> Gentle AI
+            </span>
+          </motion.div>
+        </div>
 
-        <View style={styles.features}>
-          <Text style={styles.feature}>✦ E2E Encrypted</Text>
-          <Text style={styles.feature}>✦ Safe Space</Text>
-          <Text style={styles.feature}>✦ Gentle AI</Text>
-        </View>
-
-        <Pressable
-          onPress={handleStart}
-          disabled={loading}
-          style={({ pressed }) => [
-            styles.button,
-            pressed && { transform: [{ scale: 0.96 }] },
-          ]}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7, duration: 0.6 }}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Enter the Quiet Space</Text>
-          )}
-        </Pressable>
-      </Animated.View>
+          <Button
+            size="lg"
+            onClick={handleStart}
+            disabled={loading}
+            className="text-lg px-12 py-7 rounded-full shadow-2xl transition-all duration-300 bg-primary text-primary-foreground hover:scale-105 active:scale-95"
+          >
+            {loading ? "Connecting..." : "Enter the Quiet Space"}
+          </Button>
+        </motion.div>
+      </motion.div>
 
-      <View style={styles.footer}>
-        <Link href="/privacy-policy" style={styles.footerLink}>
-          Privacy Policy
-        </Link>
-        <Text style={styles.dot}>•</Text>
-        <Link href="/terms" style={styles.footerLink}>
-          Terms of Service
-        </Link>
-      </View>
-    </View>
+      {/* Legal footer - more subtle */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1, duration: 0.6 }}
+        className="absolute bottom-8 left-0 right-0 text-center z-10"
+      >
+        <div className="flex items-center justify-center gap-6 text-[10px] uppercase tracking-widest text-muted-foreground/30 font-nunito">
+          <Link
+            href="/privacy-policy"
+            className="hover:text-muted-foreground transition-all duration-300"
+          >
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <Link
+            href="/terms"
+            className="hover:text-muted-foreground transition-all duration-300"
+          >
+            Terms of Service
+          </Link>
+        </div>
+      </motion.div>
+
+      {/* Re-designed ambient glow for a more minimal feel */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden select-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/2 rounded-full blur-[160px] animate-pulse" />
+        <div className="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-secondary/3 rounded-full blur-[120px]" />
+      </div>
+    </div>
   );
 }
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0B0B0E",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  content: {
-    alignItems: "center",
-    maxWidth: 420,
-  },
-  title: {
-    fontSize: 64,
-    fontWeight: "700",
-    color: "#EDEDED",
-    marginBottom: 24,
-  },
-  subtitle: {
-    fontSize: 20,
-    color: "#EDEDED",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  description: {
-    fontSize: 16,
-    color: "#9CA3AF",
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  features: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 40,
-    flexWrap: "wrap",
-    justifyContent: "center",
-  },
-  feature: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  button: {
-    backgroundColor: "#6366F1",
-    paddingVertical: 18,
-    paddingHorizontal: 40,
-    borderRadius: 999,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  footer: {
-    position: "absolute",
-    bottom: 32,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  footerLink: {
-    fontSize: 10,
-    color: "#6B7280",
-    textTransform: "uppercase",
-    letterSpacing: 1.5,
-  },
-  dot: {
-    color: "#6B7280",
-    fontSize: 10,
-  },
-});

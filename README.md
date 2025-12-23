@@ -8,6 +8,7 @@ Baatein is a minimalist journaling application designed to provide a calm, distr
 
 - **Minimalist Design** - Clean, neutral-to-emotion aesthetic with a dark theme
 - **End-to-End Encryption (E2EE)** - Your journals are encrypted in the browser, ensuring absolute privacy
+- **AI Companion** - Gentle AI presence that listens without interrupting, offering acknowledgments and reflections only when helpful
 - **Secure Authentication** - Google OAuth integration via Supabase
 - **Private Journaling** - Your thoughts, your space
 - **Smooth Animations** - Subtle Framer Motion animations for enhanced UX
@@ -62,9 +63,11 @@ For a detailed technical explanation of our encryption strategy, read the [Encry
    NEXT_PUBLIC_SUPABASE_URL=your-project-url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    NEXT_PUBLIC_SITE_URL=http://localhost:3000 # or your production URL
+   GEMINI_API_KEY=your-gemini-api-key # For AI Companion feature
    ```
 
-   Get these values from your [Supabase Dashboard](https://supabase.com/dashboard/project/_/settings/api)
+   Get Supabase values from your [Supabase Dashboard](https://supabase.com/dashboard/project/_/settings/api)
+   Get Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 4. **Run the development server**
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
   Italic,
   List,
   ChevronDown,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,6 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useEncryption } from "@/components/features/EncryptionProvider";
 import { encryptContent, decryptContent } from "@/lib/crypto";
 import { getRandomMicrocopy } from "@/lib/microcopies";
+import { loadPreferences, updatePreference } from "@/lib/supabase/preferences";
 import { toast } from "sonner";
 import { LoadingScreen } from "@/components/shared/LoadingScreen";
 
@@ -51,7 +53,22 @@ export function NewEntry({ initialData }: EditorProps) {
   const [isEditorEmpty, setIsEditorEmpty] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
+  // AI Companion state
+  const [aiEnabled, setAiEnabled] = useState(true); // Default enabled
+  const [aiPresence, setAiPresence] = useState<string>("");
+  const [aiSuggestion, setAiSuggestion] = useState<string>("");
+  const [aiReflection, setAiReflection] = useState<string>("");
+  const [showReflectionOffer, setShowReflectionOffer] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [lastWordCount, setLastWordCount] = useState(0);
+  const [typingPaused, setTypingPaused] = useState(false);
+  const [aiInteractions, setAiInteractions] = useState<
+    Array<{ mode: string; response: string; timestamp: string }>
+  >([]);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastContentRef = useRef<string>("");
 
   const editor = useEditor({
     extensions: [
@@ -73,6 +90,7 @@ export function NewEntry({ initialData }: EditorProps) {
     onUpdate: ({ editor }) => {
       setIsEditorEmpty(editor.isEmpty);
       checkScroll();
+      handleTypingActivity();
     },
   });
 
@@ -89,6 +107,19 @@ export function NewEntry({ initialData }: EditorProps) {
 
     setShowScrollBottom(isLongContent && isNotAtBottom);
   };
+
+  // Load AI companion preference on mount
+  useEffect(() => {
+    const loadAIPreference = async () => {
+      const prefs = await loadPreferences();
+      setAiEnabled(prefs.aiCompanionEnabled ?? true);
+      if (prefs.aiCompanionEnabled ?? true) {
+        // Show presence signal when loading if enabled
+        fetchAIResponse("presence");
+      }
+    };
+    loadAIPreference();
+  }, []);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -128,6 +159,21 @@ export function NewEntry({ initialData }: EditorProps) {
         setTitle(decryptedTitle);
         editor.commands.setContent(decryptedContent);
         setIsEditorEmpty(editor.isEmpty);
+
+        // Load AI interactions if they exist
+        if ((initialData as any).ai_interactions) {
+          try {
+            const encryptedInteractions = (initialData as any).ai_interactions;
+            const decryptedInteractions = await decryptContent(
+              encryptedInteractions,
+              dek
+            );
+            setAiInteractions(JSON.parse(decryptedInteractions));
+          } catch (err) {
+            console.error("Failed to decrypt AI interactions:", err);
+          }
+        }
+
         // Brief delay to allow content to render before checking scroll
         setTimeout(checkScroll, 100);
       } catch (err) {
@@ -166,6 +212,13 @@ export function NewEntry({ initialData }: EditorProps) {
         );
         const encryptedContent = await encryptContent(content, dek);
 
+        // ENCRYPT AI INTERACTIONS
+        let encryptedAiInteractions = null;
+        if (aiInteractions.length > 0) {
+          const aiData = JSON.stringify(aiInteractions);
+          encryptedAiInteractions = await encryptContent(aiData, dek);
+        }
+
         let error;
 
         if (initialData?.id) {
@@ -174,6 +227,7 @@ export function NewEntry({ initialData }: EditorProps) {
             .update({
               title: encryptedTitle,
               content: encryptedContent,
+              ai_interactions: encryptedAiInteractions,
               updated_at: new Date().toISOString(),
             })
             .eq("id", initialData.id);
@@ -183,6 +237,7 @@ export function NewEntry({ initialData }: EditorProps) {
             user_id: user.id,
             title: encryptedTitle,
             content: encryptedContent,
+            ai_interactions: encryptedAiInteractions,
           });
           error = result.error;
         }
@@ -226,6 +281,200 @@ export function NewEntry({ initialData }: EditorProps) {
     setFontSizeIndex((prev) => Math.max(prev - 1, 0));
     setTimeout(checkScroll, 0); // Check scroll after font change
   };
+
+  // AI Companion Logic
+  const analyzeEmotionalWeight = useCallback(
+    (text: string): "light" | "moderate" | "heavy" => {
+      const heavyWords = [
+        "anxious",
+        "scared",
+        "depressed",
+        "hopeless",
+        "alone",
+        "can't",
+        "struggling",
+        "overwhelmed",
+        "heavy",
+        "tired",
+        "exhausted",
+      ];
+      const lowerText = text.toLowerCase();
+      const heavyCount = heavyWords.filter((word) =>
+        lowerText.includes(word)
+      ).length;
+
+      if (heavyCount >= 3) return "heavy";
+      if (heavyCount >= 1) return "moderate";
+      return "light";
+    },
+    []
+  );
+
+  const fetchAIResponse = useCallback(
+    async (
+      mode: "presence" | "acknowledgment" | "reflection",
+      content?: string
+    ) => {
+      if (!aiEnabled || isAiLoading) return;
+
+      try {
+        setIsAiLoading(true);
+        const plainText = editor?.getText() || "";
+        const wordCount = plainText.split(/\s+/).filter(Boolean).length;
+        const emotionalWeight = analyzeEmotionalWeight(plainText);
+
+        const response = await fetch("/api/ai/companion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode,
+            content: content || plainText,
+            wordCount,
+            emotionalWeight,
+          }),
+        });
+
+        if (mode === "presence") {
+          const data = await response.json();
+          setAiPresence(data.response);
+        } else if (mode === "acknowledgment") {
+          const text = await response.text();
+          setAiSuggestion(text);
+          // Store interaction
+          setAiInteractions((prev) => [
+            ...prev,
+            { mode, response: text, timestamp: new Date().toISOString() },
+          ]);
+        } else if (mode === "reflection") {
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let accumulatedText = "";
+
+          if (reader) {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              accumulatedText += chunk;
+              setAiReflection(accumulatedText);
+            }
+            // Store interaction when complete
+            setAiInteractions((prev) => [
+              ...prev,
+              {
+                mode,
+                response: accumulatedText,
+                timestamp: new Date().toISOString(),
+              },
+            ]);
+          }
+        }
+      } catch (error) {
+        console.error("AI companion error:", error);
+      } finally {
+        setIsAiLoading(false);
+      }
+    },
+    [aiEnabled, editor, isAiLoading, analyzeEmotionalWeight]
+  );
+
+  const handleTypingActivity = useCallback(() => {
+    if (!aiEnabled || !editor) return;
+
+    // Clear previous timer
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+    }
+
+    setTypingPaused(false);
+
+    // Set new pause detection timer (3 seconds)
+    typingTimerRef.current = setTimeout(() => {
+      setTypingPaused(true);
+      handlePauseDetected();
+    }, 3000);
+  }, [aiEnabled, editor]);
+
+  const handlePauseDetected = useCallback(() => {
+    if (!editor || !aiEnabled) return;
+
+    const plainText = editor.getText();
+    const currentContent = plainText.trim();
+    const wordCount = plainText.split(/\s+/).filter(Boolean).length;
+
+    // Don't trigger if content hasn't changed or is too short
+    if (currentContent === lastContentRef.current || wordCount < 20) return;
+    lastContentRef.current = currentContent;
+
+    const emotionalWeight = analyzeEmotionalWeight(plainText);
+
+    // Show acknowledgment after pause (prioritize if heavy emotional weight)
+    if (!aiSuggestion && !showReflectionOffer && !aiReflection) {
+      // Trigger acknowledgment after any meaningful pause
+      fetchAIResponse("acknowledgment");
+    }
+
+    // Offer reflection if there's substantial content and multiple pauses
+    if (
+      wordCount > lastWordCount + 50 &&
+      !showReflectionOffer &&
+      !aiReflection
+    ) {
+      setShowReflectionOffer(true);
+    }
+
+    setLastWordCount(wordCount);
+  }, [
+    editor,
+    aiEnabled,
+    aiSuggestion,
+    showReflectionOffer,
+    aiReflection,
+    lastWordCount,
+    fetchAIResponse,
+    analyzeEmotionalWeight,
+  ]);
+
+  const requestReflection = useCallback(() => {
+    setShowReflectionOffer(false);
+    fetchAIResponse("reflection");
+  }, [fetchAIResponse]);
+
+  const dismissSuggestion = useCallback(() => {
+    setAiSuggestion("");
+  }, []);
+
+  const dismissReflectionOffer = useCallback(() => {
+    setShowReflectionOffer(false);
+  }, []);
+
+  const toggleAI = useCallback(async () => {
+    const newState = !aiEnabled;
+    setAiEnabled(newState);
+
+    // Save preference
+    await updatePreference("aiCompanionEnabled", newState);
+
+    if (newState) {
+      // Show presence signal when enabling
+      fetchAIResponse("presence");
+    } else {
+      // Clear all AI state when disabling
+      setAiPresence("");
+      setAiSuggestion("");
+      setAiReflection("");
+      setShowReflectionOffer(false);
+    }
+  }, [aiEnabled, fetchAIResponse]);
+
+  // Cleanup typing timer on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="h-full flex flex-col relative max-w-3xl mx-auto overflow-hidden">
@@ -291,6 +540,110 @@ export function NewEntry({ initialData }: EditorProps) {
           </>
         )}
       </main>
+
+      {/* AI Presence Indicator */}
+      <AnimatePresence>
+        {aiEnabled && aiPresence && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.3 }}
+            className="absolute top-24 right-6 z-40"
+          >
+            <div className="text-2xl animate-pulse">{aiPresence}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Acknowledgment Suggestion */}
+      <AnimatePresence>
+        {aiEnabled && aiSuggestion && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3 }}
+            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-40 max-w-md"
+          >
+            <div className="bg-background/95 backdrop-blur-md border border-white/10 rounded-2xl p-4 shadow-xl">
+              <p className="text-sm text-muted-foreground italic">
+                {aiSuggestion}
+              </p>
+              <button
+                onClick={dismissSuggestion}
+                className="mt-2 text-xs text-muted-foreground/60 hover:text-muted-foreground"
+              >
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Reflection Offer */}
+      <AnimatePresence>
+        {aiEnabled && showReflectionOffer && !aiReflection && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3 }}
+            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-40 max-w-md"
+          >
+            <div className="bg-background/95 backdrop-blur-md border border-white/10 rounded-2xl p-4 shadow-xl">
+              <p className="text-sm text-muted-foreground mb-3">
+                Would you like me to reflect on what you've shared?
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={requestReflection}
+                  className="rounded-full text-xs"
+                >
+                  Yes, please
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={dismissReflectionOffer}
+                  className="rounded-full text-xs"
+                >
+                  Not now
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Reflection Panel */}
+      <AnimatePresence>
+        {aiEnabled && aiReflection && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3 }}
+            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-40 max-w-lg"
+          >
+            <div className="bg-background/95 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-xl">
+              <div className="flex items-start gap-2 mb-3">
+                <Sparkles className="h-4 w-4 text-muted-foreground mt-1" />
+                <p className="text-sm text-foreground leading-relaxed flex-1">
+                  {aiReflection}
+                </p>
+              </div>
+              <button
+                onClick={() => setAiReflection("")}
+                className="text-xs text-muted-foreground/60 hover:text-muted-foreground"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Dynamic Scroll to Bottom Button */}
       <AnimatePresence>
@@ -373,6 +726,18 @@ export function NewEntry({ initialData }: EditorProps) {
               onClick={addImage}
             >
               <ImageIcon className="h-4 w-4" />
+            </Button>
+            <div className="w-px h-6 bg-white/10 mx-2" />
+            <Button
+              variant="ghost"
+              size="icon"
+              title={aiEnabled ? "Disable AI Companion" : "Enable AI Companion"}
+              onClick={toggleAI}
+              className={aiEnabled ? "bg-white/10" : ""}
+            >
+              <Sparkles
+                className={`h-4 w-4 ${aiEnabled ? "text-purple-400" : ""}`}
+              />
             </Button>
           </div>
         </div>

@@ -2,11 +2,13 @@ import { createClient } from "./client";
 
 export interface UserPreferences {
   viewMode?: "grid" | "list";
+  aiCompanionEnabled?: boolean;
   // Add more preferences here as needed
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   viewMode: "grid",
+  aiCompanionEnabled: true,
 };
 
 /**
