@@ -83,6 +83,52 @@ export const MICROCOPIES = {
     "What is a piece of advice you'd give to a younger version of you?",
     "What is something you're proud of, however small?",
   ],
+  aiModes: {
+    minimal: [
+      "Quiet presence",
+      "Soft echoes",
+      "Gentle whispers",
+      "Subtle companion",
+      "Light touch",
+    ],
+    embedded: [
+      "Woven thoughts",
+      "Threaded reflections",
+      "Intertwined words",
+      "Nested presence",
+      "Living notes",
+    ],
+    chat: [
+      "Open conversation",
+      "Side by side",
+      "Full dialogue",
+      "Deep talk",
+      "Heart to heart",
+    ],
+  },
+  aiActions: {
+    continueChat: [
+      "Keep talking",
+      "Continue here",
+      "Say more",
+      "Open up",
+      "Let's talk",
+    ],
+    removeMessage: [
+      "Let go",
+      "Clear this",
+      "Release",
+      "Fade away",
+      "Dismiss",
+    ],
+    keepMessage: [
+      "Keep this",
+      "Hold onto",
+      "Save",
+      "Remember",
+      "Stay here",
+    ],
+  },
 };
 
 /**
