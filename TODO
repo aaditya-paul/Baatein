@@ -1,0 +1,141 @@
+PHASE 4: AI LISTENER (TEXT)
+
+ Create AI server route
+
+ Write system prompt (warm, non-generic, non-therapist)
+
+ Send user text to Gemini
+
+ Receive response
+
+ Enforce:
+
+max length
+
+no lists
+
+no diagnoses
+
+ Save AI response with entry
+
+Done when: text → thoughtful AI reply
+
+PHASE 5: MULTI-LANGUAGE SUPPORT
+
+ Detect user language from input
+
+ Allow manual language override
+
+ Pass language instruction to Gemini
+
+ Test:
+
+English
+
+Hindi
+
+Hinglish
+
+ Ensure Hinglish is natural (no slang)
+
+Done when: AI replies match user language style
+
+PHASE 6: VOICE INPUT (SPEAK → EDIT → SAVE)
+
+ Implement audio recording (client)
+
+ Send audio to STT (Gemini / Google)
+
+ Receive transcription
+
+ Allow user to edit transcription
+
+ Only save after confirmation
+
+ Handle STT failure gracefully
+
+Done when: speaking feels as safe as typing
+
+PHASE 7: CALL MODE (LIVE VOICE)
+
+ Start continuous audio capture
+
+ Stream audio for transcription
+
+ No live captions shown
+
+ Detect end / pause
+
+ Generate editable text transcript
+
+ Send final text to AI
+
+ Return calm AI response
+
+Done when: user can “talk it out” end-to-end
+
+PHASE 8: VOICE EMOTION SIGNALS (INTERNAL)
+
+ Detect:
+
+pauses
+
+sighs
+
+volume drops
+
+broken speech
+
+ Convert to simple flags:
+
+distress_level: none / mild / high
+
+ Do NOT store these flags
+
+ Pass flags only to AI prompt
+
+ Adjust tone based on flags
+
+Done when: AI feels softer without saying why
+
+PHASE 9: TEXT-TO-SPEECH (AI SPEAKS)
+
+ Implement TTS for AI responses
+
+ Match response language
+
+ Neutral, calm voice only
+
+ Allow user to toggle TTS
+
+ Do not autoplay by default
+
+Done when: listening feels optional and safe
+
+PHASE 10: CRISIS-SAFE HANDLING
+
+ Detect high-risk phrases
+
+ Switch AI to crisis-safe response mode
+
+ Avoid panic language
+
+ Gently suggest outside help
+
+ Never claim AI is enough
+
+Done when: app behaves responsibly under distress
+
+PHASE 11: SETTINGS & TRUST
+
+ Language preference setting
+
+ Voice enable/disable
+
+ TTS enable/disable
+
+ Privacy text visible
+
+ Disclaimer text included
+
+Done when: user feels in control
