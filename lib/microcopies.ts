@@ -114,20 +114,8 @@ export const MICROCOPIES = {
       "Open up",
       "Let's talk",
     ],
-    removeMessage: [
-      "Let go",
-      "Clear this",
-      "Release",
-      "Fade away",
-      "Dismiss",
-    ],
-    keepMessage: [
-      "Keep this",
-      "Hold onto",
-      "Save",
-      "Remember",
-      "Stay here",
-    ],
+    removeMessage: ["Let go", "Clear this", "Release", "Fade away", "Dismiss"],
+    keepMessage: ["Keep this", "Hold onto", "Save", "Remember", "Stay here"],
   },
 };
 

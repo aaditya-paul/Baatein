@@ -11,6 +11,7 @@ import {
   List,
   ChevronDown,
   Sparkles,
+  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,10 +22,12 @@ import ImageExtension from "@tiptap/extension-image";
 import { createClient } from "@/lib/supabase/client";
 import { useEncryption } from "@/components/features/EncryptionProvider";
 import { encryptContent, decryptContent } from "@/lib/crypto";
-import { getRandomMicrocopy } from "@/lib/microcopies";
+import { getRandomMicrocopy, MICROCOPIES } from "@/lib/microcopies";
 import { loadPreferences, updatePreference } from "@/lib/supabase/preferences";
 import { toast } from "sonner";
 import { LoadingScreen } from "@/components/shared/LoadingScreen";
+import { EmbeddedAIMessage } from "./EmbeddedAIMessage";
+import { AIChatSidebar } from "./AIChatSidebar";
 
 const FONT_SIZES = [
   "prose-sm",
@@ -55,6 +58,9 @@ export function NewEntry({ initialData }: EditorProps) {
 
   // AI Companion state
   const [aiEnabled, setAiEnabled] = useState(true); // Default enabled
+  const [aiMode, setAiMode] = useState<"minimal" | "embedded" | "chat">(
+    "minimal"
+  );
   const [aiPresence, setAiPresence] = useState<string>("");
   const [aiSuggestion, setAiSuggestion] = useState<string>("");
   const [aiReflection, setAiReflection] = useState<string>("");
@@ -65,6 +71,26 @@ export function NewEntry({ initialData }: EditorProps) {
   const [aiInteractions, setAiInteractions] = useState<
     Array<{ mode: string; response: string; timestamp: string }>
   >([]);
+  const [embeddedMessages, setEmbeddedMessages] = useState<
+    Array<{ id: string; message: string; timestamp: string }>
+  >([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatHistory, setChatHistory] = useState<
+    Array<{ role: "user" | "ai"; content: string }>
+  >([]);
+  const [modeLabels] = useState(() => ({
+    minimal:
+      MICROCOPIES.aiModes.minimal[
+        Math.floor(Math.random() * MICROCOPIES.aiModes.minimal.length)
+      ],
+    embedded:
+      MICROCOPIES.aiModes.embedded[
+        Math.floor(Math.random() * MICROCOPIES.aiModes.embedded.length)
+      ],
+    chat: MICROCOPIES.aiModes.chat[
+      Math.floor(Math.random() * MICROCOPIES.aiModes.chat.length)
+    ],
+  }));
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -113,6 +139,7 @@ export function NewEntry({ initialData }: EditorProps) {
     const loadAIPreference = async () => {
       const prefs = await loadPreferences();
       setAiEnabled(prefs.aiCompanionEnabled ?? true);
+      setAiMode(prefs.aiMode ?? "minimal");
       if (prefs.aiCompanionEnabled ?? true) {
         // Show presence signal when loading if enabled
         fetchAIResponse("presence");
@@ -339,7 +366,23 @@ export function NewEntry({ initialData }: EditorProps) {
           setAiPresence(data.response);
         } else if (mode === "acknowledgment") {
           const text = await response.text();
-          setAiSuggestion(text);
+
+          // Handle based on current AI mode
+          if (aiMode === "embedded") {
+            // Add to embedded messages (max 2-3 lines from API)
+            setEmbeddedMessages((prev) => [
+              ...prev,
+              {
+                id: Date.now().toString(),
+                message: text,
+                timestamp: new Date().toISOString(),
+              },
+            ]);
+          } else {
+            // Minimal mode: show modal
+            setAiSuggestion(text);
+          }
+
           // Store interaction
           setAiInteractions((prev) => [
             ...prev,
@@ -356,7 +399,33 @@ export function NewEntry({ initialData }: EditorProps) {
               if (done) break;
               const chunk = decoder.decode(value, { stream: true });
               accumulatedText += chunk;
-              setAiReflection(accumulatedText);
+
+              // Update based on current AI mode
+              if (aiMode === "embedded") {
+                // For embedded mode, update the last message or create new one
+                const messageId = Date.now().toString();
+                setEmbeddedMessages((prev) => {
+                  const existing = prev.find((m) => m.id === messageId);
+                  if (existing) {
+                    return prev.map((m) =>
+                      m.id === messageId
+                        ? { ...m, message: accumulatedText }
+                        : m
+                    );
+                  }
+                  return [
+                    ...prev,
+                    {
+                      id: messageId,
+                      message: accumulatedText,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ];
+                });
+              } else {
+                // Minimal mode: show in modal
+                setAiReflection(accumulatedText);
+              }
             }
             // Store interaction when complete
             setAiInteractions((prev) => [
@@ -464,6 +533,9 @@ export function NewEntry({ initialData }: EditorProps) {
       setAiSuggestion("");
       setAiReflection("");
       setShowReflectionOffer(false);
+      setEmbeddedMessages([]);
+      setIsChatOpen(false);
+      setChatHistory([]);
     }
   }, [aiEnabled, fetchAIResponse]);
 
@@ -537,9 +609,92 @@ export function NewEntry({ initialData }: EditorProps) {
             >
               <EditorContent editor={editor} />
             </motion.div>
+
+            {/* Embedded AI Messages (for embedded mode) */}
+            {aiEnabled &&
+              aiMode === "embedded" &&
+              embeddedMessages.length > 0 && (
+                <div className="mt-6 space-y-3">
+                  {embeddedMessages.map((msg) => (
+                    <EmbeddedAIMessage
+                      key={msg.id}
+                      message={msg.message}
+                      onRemove={() => {
+                        setEmbeddedMessages((prev) =>
+                          prev.filter((m) => m.id !== msg.id)
+                        );
+                      }}
+                      onContinueChat={() => {
+                        // Switch to chat mode and open sidebar
+                        setAiMode("chat");
+                        updatePreference("aiMode", "chat");
+                        setIsChatOpen(true);
+                        // Add this message to chat history as context
+                        setChatHistory((prev) => [
+                          ...prev,
+                          { role: "ai", content: msg.message },
+                        ]);
+                      }}
+                      chatModeAvailable={true}
+                    />
+                  ))}
+                </div>
+              )}
           </>
         )}
       </main>
+
+      {/* AI Chat Sidebar (for chat mode) */}
+      {aiEnabled && (
+        <AIChatSidebar
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          entryContext={editor?.getText() || ""}
+          onSendMessage={async (message) => {
+            try {
+              // Add user message to history
+              setChatHistory((prev) => [
+                ...prev,
+                { role: "user", content: message },
+              ]);
+
+              const response = await fetch("/api/ai/companion", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  mode: "chat",
+                  content: editor?.getText() || "",
+                  chatHistory,
+                  userMessage: message,
+                }),
+              });
+
+              const data = await response.json();
+
+              // Add AI response to history
+              setChatHistory((prev) => [
+                ...prev,
+                { role: "ai", content: data.response },
+              ]);
+
+              // Store interaction
+              setAiInteractions((prev) => [
+                ...prev,
+                {
+                  mode: "chat",
+                  response: data.response,
+                  timestamp: new Date().toISOString(),
+                },
+              ]);
+
+              return data.response;
+            } catch (error) {
+              console.error("Chat error:", error);
+              return "I'm having trouble responding right now. Please try again.";
+            }
+          }}
+        />
+      )}
 
       {/* AI Presence Indicator */}
       <AnimatePresence>
@@ -728,6 +883,29 @@ export function NewEntry({ initialData }: EditorProps) {
               <ImageIcon className="h-4 w-4" />
             </Button>
             <div className="w-px h-6 bg-white/10 mx-2" />
+            {/* AI Mode Selector */}
+            {aiEnabled && (
+              <select
+                value={aiMode}
+                onChange={async (e) => {
+                  const newMode = e.target.value as
+                    | "minimal"
+                    | "embedded"
+                    | "chat";
+                  setAiMode(newMode);
+                  await updatePreference("aiMode", newMode);
+                  if (newMode === "chat") {
+                    setIsChatOpen(true);
+                  }
+                }}
+                className="text-xs bg-secondary/50 border border-white/10 rounded-full px-3 py-1.5 hover:bg-secondary/70 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer"
+                title="AI Interaction Mode"
+              >
+                <option value="minimal">{modeLabels.minimal}</option>
+                <option value="embedded">{modeLabels.embedded}</option>
+                <option value="chat">{modeLabels.chat}</option>
+              </select>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -739,6 +917,18 @@ export function NewEntry({ initialData }: EditorProps) {
                 className={`h-4 w-4 ${aiEnabled ? "text-purple-400" : ""}`}
               />
             </Button>
+            {/* Chat Sidebar Toggle (when chat mode active) */}
+            {aiEnabled && aiMode === "chat" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                title={isChatOpen ? "Close Chat" : "Open Chat"}
+                onClick={() => setIsChatOpen(!isChatOpen)}
+                className={isChatOpen ? "bg-white/10" : ""}
+              >
+                <MessageSquare className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

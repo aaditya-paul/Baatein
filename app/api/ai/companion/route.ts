@@ -6,13 +6,15 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export const runtime = "edge";
 
-type CompanionMode = "presence" | "acknowledgment" | "reflection";
+type CompanionMode = "presence" | "acknowledgment" | "reflection" | "chat";
 
 interface CompanionRequest {
   mode: CompanionMode;
   content: string;
   wordCount: number;
   emotionalWeight?: "light" | "moderate" | "heavy";
+  chatHistory?: Array<{ role: string; content: string }>;
+  userMessage?: string;
 }
 
 const SYSTEM_PROMPTS = {
@@ -63,12 +65,29 @@ Avoid:
 - Lists or frameworks
 - Diagnostic language
 - Ending with questions`,
+
+  chat: `You are a gentle, thoughtful companion having a conversation with someone about their journal entry.
+
+Be conversational but thoughtful. Each response should:
+- Be brief (2-4 sentences max unless asked for more)
+- Ask open-ended questions when appropriate
+- Reflect what you're hearing
+- Stay warm and human, never clinical
+- Avoid giving advice unless specifically asked
+
+Tone: Like a caring friend who's really listening. Present but not pushy.`,
 };
 
 export async function POST(req: NextRequest) {
   try {
-    const { mode, content, wordCount, emotionalWeight }: CompanionRequest =
-      await req.json();
+    const {
+      mode,
+      content,
+      wordCount,
+      emotionalWeight,
+      chatHistory,
+      userMessage,
+    }: CompanionRequest = await req.json();
 
     if (!process.env.GEMINI_API_KEY) {
       return new Response(
@@ -83,6 +102,37 @@ export async function POST(req: NextRequest) {
       const signal =
         presenceSignals[Math.floor(Math.random() * presenceSignals.length)];
       return new Response(JSON.stringify({ response: signal, mode }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // For chat mode, use different handling
+    if (mode === "chat") {
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+      });
+
+      const chatPrompt = `${SYSTEM_PROMPTS.chat}
+
+Context from their journal entry:
+${content}
+
+${
+  chatHistory && chatHistory.length > 0
+    ? `Previous conversation:\n${chatHistory
+        .map((m) => `${m.role === "user" ? "Them" : "You"}: ${m.content}`)
+        .join("\n")}\n`
+    : ""
+}
+
+Their message: ${userMessage}
+
+Your response:`;
+
+      const result = await model.generateContent(chatPrompt);
+      const response = result.response.text();
+
+      return new Response(JSON.stringify({ response, mode }), {
         headers: { "Content-Type": "application/json" },
       });
     }
