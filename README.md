@@ -7,10 +7,21 @@ Baatein is a minimalist journaling application designed to provide a calm, distr
 ## ✨ Features
 
 - **Minimalist Design** - Clean, neutral-to-emotion aesthetic with a dark theme
+- **End-to-End Encryption (E2EE)** - Your journals are encrypted in the browser, ensuring absolute privacy
 - **Secure Authentication** - Google OAuth integration via Supabase
 - **Private Journaling** - Your thoughts, your space
 - **Smooth Animations** - Subtle Framer Motion animations for enhanced UX
 - **Responsive** - Beautiful on all devices
+
+## 🔐 Security & Privacy
+
+Baatein is built with security as a core principle. We use **End-to-End Encryption (E2EE)** to ensure that your thoughts remain private.
+
+- **Client-Side Encryption**: All sensitive data is encrypted in your browser using the Web Crypto API.
+- **No Access**: Not even the developers can read your journals.
+- **Zero-Knowledge**: Your PIN is never sent to the server.
+
+For a detailed technical explanation of our encryption strategy, read the [Encryption Architecture guide](./ENCRYPTION.md).
 
 ## 🚀 Tech Stack
 
