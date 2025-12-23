@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
     // For presence mode, return immediately without API call
     if (mode === "presence") {
-      const presenceSignals = ["✨", "💙", "🤍", "listening..."];
+      const presenceSignals = ["✨", "💙", "🤍", "🪄"];
       const signal =
         presenceSignals[Math.floor(Math.random() * presenceSignals.length)];
       return new Response(JSON.stringify({ response: signal, mode }), {

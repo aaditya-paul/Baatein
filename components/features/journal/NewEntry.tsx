@@ -369,7 +369,7 @@ export function NewEntry({ initialData }: EditorProps) {
 
           // Handle based on current AI mode
           if (aiMode === "embedded") {
-            // Add to embedded messages (max 2-3 lines from API)
+            // Add to embedded messages
             setEmbeddedMessages((prev) => [
               ...prev,
               {
@@ -402,26 +402,12 @@ export function NewEntry({ initialData }: EditorProps) {
 
               // Update based on current AI mode
               if (aiMode === "embedded") {
-                // For embedded mode, update the last message or create new one
-                const messageId = Date.now().toString();
-                setEmbeddedMessages((prev) => {
-                  const existing = prev.find((m) => m.id === messageId);
-                  if (existing) {
-                    return prev.map((m) =>
-                      m.id === messageId
-                        ? { ...m, message: accumulatedText }
-                        : m
-                    );
-                  }
-                  return [
-                    ...prev,
-                    {
-                      id: messageId,
-                      message: accumulatedText,
-                      timestamp: new Date().toISOString(),
-                    },
-                  ];
-                });
+                // For embedded mode, insert inline (for streaming, we'll update in place)
+                if (editor && accumulatedText) {
+                  // Simple approach: just show in modal for reflection streaming
+                  // Full inline streaming would require custom TipTap extension
+                  setAiReflection(accumulatedText);
+                }
               } else {
                 // Minimal mode: show in modal
                 setAiReflection(accumulatedText);
@@ -444,7 +430,7 @@ export function NewEntry({ initialData }: EditorProps) {
         setIsAiLoading(false);
       }
     },
-    [aiEnabled, editor, isAiLoading, analyzeEmotionalWeight]
+    [aiEnabled, editor, isAiLoading, analyzeEmotionalWeight, aiMode]
   );
 
   const handleTypingActivity = useCallback(() => {
@@ -605,16 +591,13 @@ export function NewEntry({ initialData }: EditorProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4, delay: 0.1 }}
-              className={`prose prose-zinc dark:prose-invert ${FONT_SIZES[fontSizeIndex]} max-w-none`}
+              className={`prose prose-zinc dark:prose-invert ${FONT_SIZES[fontSizeIndex]} max-w-none relative`}
             >
               <EditorContent editor={editor} />
-            </motion.div>
-
-            {/* Embedded AI Messages (for embedded mode) */}
-            {aiEnabled &&
-              aiMode === "embedded" &&
-              embeddedMessages.length > 0 && (
-                <div className="mt-6 space-y-3">
+              
+              {/* Embedded AI Messages - rendered inline within editor container */}
+              {aiEnabled && aiMode === "embedded" && embeddedMessages.length > 0 && (
+                <div className="space-y-4 mt-4">
                   {embeddedMessages.map((msg) => (
                     <EmbeddedAIMessage
                       key={msg.id}
@@ -625,11 +608,9 @@ export function NewEntry({ initialData }: EditorProps) {
                         );
                       }}
                       onContinueChat={() => {
-                        // Switch to chat mode and open sidebar
                         setAiMode("chat");
                         updatePreference("aiMode", "chat");
                         setIsChatOpen(true);
-                        // Add this message to chat history as context
                         setChatHistory((prev) => [
                           ...prev,
                           { role: "ai", content: msg.message },
@@ -640,6 +621,7 @@ export function NewEntry({ initialData }: EditorProps) {
                   ))}
                 </div>
               )}
+            </motion.div>
           </>
         )}
       </main>
@@ -822,18 +804,17 @@ export function NewEntry({ initialData }: EditorProps) {
       </AnimatePresence>
 
       {/* Fixed Bottom Toolbar */}
-      <div className="flex-none py-4 bg-background/50 backdrop-blur-sm z-50">
-        <div className="py-3 px-4 bg-background/80 backdrop-blur-md border border-white/5 rounded-full flex items-center justify-between mx-auto w-full max-w-md shadow-2xl">
-          <div className="flex gap-1 items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleBold}
-              className={editor?.isActive("bold") ? "bg-white/10" : ""}
-              title="Bold"
-            >
-              <Bold className="h-4 w-4" />
-            </Button>
+      <div className="flex-none py-3 sm:py-4 bg-background/50 backdrop-blur-sm z-50">
+        <div className="py-2 sm:py-3 px-2 sm:px-4 bg-background/80 backdrop-blur-md border border-white/5 rounded-full flex items-center gap-1 sm:gap-2 justify-center mx-auto w-[95%] max-w-2xl shadow-2xl overflow-x-auto custom-scrollbar">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleBold}
+            className={editor?.isActive("bold") ? "bg-white/10" : ""}
+            title="Bold"
+          >
+            <Bold className="h-4 w-4" />
+          </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -852,37 +833,38 @@ export function NewEntry({ initialData }: EditorProps) {
             >
               <List className="h-4 w-4" />
             </Button>
-            <div className="w-px h-6 bg-white/10 mx-2" />
-            <div className="flex items-center gap-0.5">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={decreaseFontSize}
-                disabled={fontSizeIndex === 0}
-                title="Decrease Font"
-              >
-                <span className="text-xs font-bold">A-</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={increaseFontSize}
-                disabled={fontSizeIndex === FONT_SIZES.length - 1}
-                title="Increase Font"
-              >
-                <span className="text-sm font-bold">A+</span>
-              </Button>
-            </div>
-            <div className="w-px h-6 bg-white/10 mx-2" />
+            <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={decreaseFontSize}
+              disabled={fontSizeIndex === 0}
+              title="Decrease Font"
+              className="hidden sm:flex"
+            >
+              <span className="text-xs font-bold">A-</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={increaseFontSize}
+              disabled={fontSizeIndex === FONT_SIZES.length - 1}
+              title="Increase Font"
+              className="hidden sm:flex"
+            >
+              <span className="text-sm font-bold">A+</span>
+            </Button>
+            <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
             <Button
               variant="ghost"
               size="icon"
               title="Add Image"
               onClick={addImage}
+              className="hidden sm:flex"
             >
               <ImageIcon className="h-4 w-4" />
             </Button>
-            <div className="w-px h-6 bg-white/10 mx-2" />
+            <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
             {/* AI Mode Selector */}
             {aiEnabled && (
               <select
@@ -898,7 +880,7 @@ export function NewEntry({ initialData }: EditorProps) {
                     setIsChatOpen(true);
                   }
                 }}
-                className="text-xs bg-secondary/50 border border-white/10 rounded-full px-3 py-1.5 hover:bg-secondary/70 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer"
+                className="text-[10px] sm:text-xs bg-secondary/50 border border-white/10 rounded-full px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-secondary/70 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer shrink-0"
                 title="AI Interaction Mode"
               >
                 <option value="minimal">{modeLabels.minimal}</option>
@@ -906,12 +888,13 @@ export function NewEntry({ initialData }: EditorProps) {
                 <option value="chat">{modeLabels.chat}</option>
               </select>
             )}
+            <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
             <Button
               variant="ghost"
               size="icon"
               title={aiEnabled ? "Disable AI Companion" : "Enable AI Companion"}
               onClick={toggleAI}
-              className={aiEnabled ? "bg-white/10" : ""}
+              className={`shrink-0 ${aiEnabled ? "bg-white/10" : ""}`}
             >
               <Sparkles
                 className={`h-4 w-4 ${aiEnabled ? "text-purple-400" : ""}`}
@@ -924,12 +907,11 @@ export function NewEntry({ initialData }: EditorProps) {
                 size="icon"
                 title={isChatOpen ? "Close Chat" : "Open Chat"}
                 onClick={() => setIsChatOpen(!isChatOpen)}
-                className={isChatOpen ? "bg-white/10" : ""}
+                className={`shrink-0 ${isChatOpen ? "bg-white/10" : ""}`}
               >
                 <MessageSquare className="h-4 w-4" />
               </Button>
             )}
-          </div>
         </div>
       </div>
     </div>

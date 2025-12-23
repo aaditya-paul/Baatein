@@ -88,7 +88,7 @@ export function AIChatSidebar({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] lg:hidden"
           />
 
           {/* Sidebar */}
@@ -97,7 +97,7 @@ export function AIChatSidebar({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 w-full sm:w-96 lg:w-md bg-background border-l border-white/10 z-50 flex flex-col shadow-2xl"
+            className="fixed right-0 top-0 bottom-0 w-full sm:w-96 lg:w-md bg-background border-l border-white/10 z-[70] flex flex-col shadow-2xl"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/10">
