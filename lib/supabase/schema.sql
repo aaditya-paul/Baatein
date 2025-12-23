@@ -35,6 +35,7 @@ create table profiles (
   is_deleted boolean default false,
   encrypted_dek text, -- Encrypted Data Encryption Key
   dek_salt text,      -- Salt for PBKDF2 key derivation
+  preferences jsonb default '{"viewMode": "grid"}'::jsonb, -- User preferences (view mode, etc.)
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );

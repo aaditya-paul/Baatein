@@ -17,8 +17,8 @@ export function PinSetup({ onComplete }: PinSetupProps) {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (pin.length < 4) {
-      setError("PIN must be at least 4 characters");
+    if (pin.length !== 4 || confirmPin.length !== 4) {
+      setError("PIN must be exactly 4 characters");
       return;
     }
 
@@ -62,9 +62,13 @@ export function PinSetup({ onComplete }: PinSetupProps) {
             <label className="text-sm font-medium mb-2 block">Enter PIN</label>
             <Input
               type="password"
-              placeholder="At least 4 characters"
+              placeholder="Enter 4 Digit Pin"
               value={pin}
-              onChange={(e) => setPin(e.target.value)}
+              maxLength={4}
+              onChange={(e) => {
+                const value = e.target.value.replace(/[^0-9]/g, "");
+                setPin(value);
+              }}
               className="text-center text-lg tracking-widest"
             />
           </div>
@@ -77,7 +81,11 @@ export function PinSetup({ onComplete }: PinSetupProps) {
               type="password"
               placeholder="Re-enter your PIN"
               value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value)}
+              maxLength={4}
+              onChange={(e) => {
+                const value = e.target.value.replace(/[^0-9]/g, "");
+                setConfirmPin(value);
+              }}
               className="text-center text-lg tracking-widest"
             />
           </div>

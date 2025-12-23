@@ -70,7 +70,7 @@ export function PinEntry({ onUnlock }: PinEntryProps) {
 
           <Button
             onClick={handleSubmit}
-            disabled={loading || !pin}
+            disabled={loading || !pin || pin.length !== 4}
             className="w-full rounded-full py-6 text-base font-semibold"
           >
             {loading ? "Unlocking..." : "Unlock"}

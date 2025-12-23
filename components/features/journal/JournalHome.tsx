@@ -13,6 +13,7 @@ import { getRandomMicrocopy } from "@/lib/microcopies";
 import { toast } from "sonner";
 import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import { AnimatePresence } from "framer-motion";
+import { loadPreferences, updatePreference } from "@/lib/supabase/preferences";
 
 // Exported type for use in page.tsx
 export interface JournalEntry {
@@ -36,10 +37,27 @@ export function JournalHome({
 }: JournalHomeProps) {
   const { dek } = useEncryption();
   const [decryptedEntries, setDecryptedEntries] = useState<JournalEntry[]>([]);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(entries.length > 0);
+  const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
   const router = useRouter();
   const supabase = createClient();
+
+  // Load user preferences on mount
+  useEffect(() => {
+    const loadUserPreferences = async () => {
+      const preferences = await loadPreferences();
+      setViewMode(preferences.viewMode || "grid");
+      setIsLoadingPreferences(false);
+    };
+    loadUserPreferences();
+  }, []);
+
+  // Save view mode preference when it changes
+  const handleViewModeChange = async (mode: "grid" | "list") => {
+    setViewMode(mode);
+    await updatePreference("viewMode", mode);
+  };
 
   // Decrypt entries when they change or dek becomes available
   useEffect(() => {
@@ -156,6 +174,11 @@ export function JournalHome({
     });
   };
 
+  // Show loading screen while preferences are being loaded
+  if (isLoadingPreferences) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
       {/* Fixed Header Section */}
@@ -184,7 +207,7 @@ export function JournalHome({
                   ? "bg-white/10 text-foreground"
                   : "text-muted-foreground"
               }`}
-              onClick={() => setViewMode("grid")}
+              onClick={() => handleViewModeChange("grid")}
             >
               <LayoutGrid className="w-4 h-4" />
             </Button>
@@ -196,7 +219,7 @@ export function JournalHome({
                   ? "bg-white/10 text-foreground"
                   : "text-muted-foreground"
               }`}
-              onClick={() => setViewMode("list")}
+              onClick={() => handleViewModeChange("list")}
             >
               <List className="w-4 h-4" />
             </Button>
