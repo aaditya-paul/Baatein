@@ -594,33 +594,35 @@ export function NewEntry({ initialData }: EditorProps) {
               className={`prose prose-zinc dark:prose-invert ${FONT_SIZES[fontSizeIndex]} max-w-none relative`}
             >
               <EditorContent editor={editor} />
-              
+
               {/* Embedded AI Messages - rendered inline within editor container */}
-              {aiEnabled && aiMode === "embedded" && embeddedMessages.length > 0 && (
-                <div className="space-y-4 mt-4">
-                  {embeddedMessages.map((msg) => (
-                    <EmbeddedAIMessage
-                      key={msg.id}
-                      message={msg.message}
-                      onRemove={() => {
-                        setEmbeddedMessages((prev) =>
-                          prev.filter((m) => m.id !== msg.id)
-                        );
-                      }}
-                      onContinueChat={() => {
-                        setAiMode("chat");
-                        updatePreference("aiMode", "chat");
-                        setIsChatOpen(true);
-                        setChatHistory((prev) => [
-                          ...prev,
-                          { role: "ai", content: msg.message },
-                        ]);
-                      }}
-                      chatModeAvailable={true}
-                    />
-                  ))}
-                </div>
-              )}
+              {aiEnabled &&
+                aiMode === "embedded" &&
+                embeddedMessages.length > 0 && (
+                  <div className="space-y-4 mt-4">
+                    {embeddedMessages.map((msg) => (
+                      <EmbeddedAIMessage
+                        key={msg.id}
+                        message={msg.message}
+                        onRemove={() => {
+                          setEmbeddedMessages((prev) =>
+                            prev.filter((m) => m.id !== msg.id)
+                          );
+                        }}
+                        onContinueChat={() => {
+                          setAiMode("chat");
+                          updatePreference("aiMode", "chat");
+                          setIsChatOpen(true);
+                          setChatHistory((prev) => [
+                            ...prev,
+                            { role: "ai", content: msg.message },
+                          ]);
+                        }}
+                        chatModeAvailable={true}
+                      />
+                    ))}
+                  </div>
+                )}
             </motion.div>
           </>
         )}
@@ -815,103 +817,103 @@ export function NewEntry({ initialData }: EditorProps) {
           >
             <Bold className="h-4 w-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleItalic}
+            className={editor?.isActive("italic") ? "bg-white/10" : ""}
+            title="Italic"
+          >
+            <Italic className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleList}
+            className={editor?.isActive("bulletList") ? "bg-white/10" : ""}
+            title="List"
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={decreaseFontSize}
+            disabled={fontSizeIndex === 0}
+            title="Decrease Font"
+            className="hidden sm:flex"
+          >
+            <span className="text-xs font-bold">A-</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={increaseFontSize}
+            disabled={fontSizeIndex === FONT_SIZES.length - 1}
+            title="Increase Font"
+            className="hidden sm:flex"
+          >
+            <span className="text-sm font-bold">A+</span>
+          </Button>
+          <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Add Image"
+            onClick={addImage}
+            className="hidden sm:flex"
+          >
+            <ImageIcon className="h-4 w-4" />
+          </Button>
+          <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
+          {/* AI Mode Selector */}
+          {aiEnabled && (
+            <select
+              value={aiMode}
+              onChange={async (e) => {
+                const newMode = e.target.value as
+                  | "minimal"
+                  | "embedded"
+                  | "chat";
+                setAiMode(newMode);
+                await updatePreference("aiMode", newMode);
+                if (newMode === "chat") {
+                  setIsChatOpen(true);
+                }
+              }}
+              className="text-[10px] sm:text-xs bg-secondary/50 border border-white/10 rounded-full px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-secondary/70 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer shrink-0"
+              title="AI Interaction Mode"
+            >
+              <option value="minimal">{modeLabels.minimal}</option>
+              <option value="embedded">{modeLabels.embedded}</option>
+              <option value="chat">{modeLabels.chat}</option>
+            </select>
+          )}
+          <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
+          <Button
+            variant="ghost"
+            size="icon"
+            title={aiEnabled ? "Disable AI Companion" : "Enable AI Companion"}
+            onClick={toggleAI}
+            className={`shrink-0 ${aiEnabled ? "bg-white/10" : ""}`}
+          >
+            <Sparkles
+              className={`h-4 w-4 ${aiEnabled ? "text-purple-400" : ""}`}
+            />
+          </Button>
+          {/* Chat Sidebar Toggle (when chat mode active) */}
+          {aiEnabled && aiMode === "chat" && (
             <Button
               variant="ghost"
               size="icon"
-              onClick={toggleItalic}
-              className={editor?.isActive("italic") ? "bg-white/10" : ""}
-              title="Italic"
+              title={isChatOpen ? "Close Chat" : "Open Chat"}
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              className={`shrink-0 ${isChatOpen ? "bg-white/10" : ""}`}
             >
-              <Italic className="h-4 w-4" />
+              <MessageSquare className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleList}
-              className={editor?.isActive("bulletList") ? "bg-white/10" : ""}
-              title="List"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-            <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={decreaseFontSize}
-              disabled={fontSizeIndex === 0}
-              title="Decrease Font"
-              className="hidden sm:flex"
-            >
-              <span className="text-xs font-bold">A-</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={increaseFontSize}
-              disabled={fontSizeIndex === FONT_SIZES.length - 1}
-              title="Increase Font"
-              className="hidden sm:flex"
-            >
-              <span className="text-sm font-bold">A+</span>
-            </Button>
-            <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Add Image"
-              onClick={addImage}
-              className="hidden sm:flex"
-            >
-              <ImageIcon className="h-4 w-4" />
-            </Button>
-            <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
-            {/* AI Mode Selector */}
-            {aiEnabled && (
-              <select
-                value={aiMode}
-                onChange={async (e) => {
-                  const newMode = e.target.value as
-                    | "minimal"
-                    | "embedded"
-                    | "chat";
-                  setAiMode(newMode);
-                  await updatePreference("aiMode", newMode);
-                  if (newMode === "chat") {
-                    setIsChatOpen(true);
-                  }
-                }}
-                className="text-[10px] sm:text-xs bg-secondary/50 border border-white/10 rounded-full px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-secondary/70 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer shrink-0"
-                title="AI Interaction Mode"
-              >
-                <option value="minimal">{modeLabels.minimal}</option>
-                <option value="embedded">{modeLabels.embedded}</option>
-                <option value="chat">{modeLabels.chat}</option>
-              </select>
-            )}
-            <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
-            <Button
-              variant="ghost"
-              size="icon"
-              title={aiEnabled ? "Disable AI Companion" : "Enable AI Companion"}
-              onClick={toggleAI}
-              className={`shrink-0 ${aiEnabled ? "bg-white/10" : ""}`}
-            >
-              <Sparkles
-                className={`h-4 w-4 ${aiEnabled ? "text-purple-400" : ""}`}
-              />
-            </Button>
-            {/* Chat Sidebar Toggle (when chat mode active) */}
-            {aiEnabled && aiMode === "chat" && (
-              <Button
-                variant="ghost"
-                size="icon"
-                title={isChatOpen ? "Close Chat" : "Open Chat"}
-                onClick={() => setIsChatOpen(!isChatOpen)}
-                className={`shrink-0 ${isChatOpen ? "bg-white/10" : ""}`}
-              >
-                <MessageSquare className="h-4 w-4" />
-              </Button>
-            )}
+          )}
         </div>
       </div>
     </div>
