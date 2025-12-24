@@ -30,37 +30,43 @@ export function EmbeddedAIMessage({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3 }}
-      className="relative my-3 p-3 sm:p-4 pr-10 rounded-xl bg-gradient-to-br from-emerald-500/10 via-green-500/10 to-teal-500/10 border border-emerald-500/30 backdrop-blur-sm shadow-lg shadow-emerald-500/5"
+      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: -10 }}
+      transition={{ duration: 0.4, type: "spring" }}
+      className="relative my-4 p-4 sm:p-5 pr-12 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-teal-500/10 border-2 border-emerald-400/20 backdrop-blur-sm shadow-xl shadow-emerald-500/10 hover:shadow-emerald-500/20 transition-shadow"
     >
+      {/* Magical glow effect */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-400/5 to-teal-400/5 blur-xl -z-10" />
+
       {/* Cross button on top right corner */}
       <Button
         size="sm"
         variant="ghost"
         onClick={onRemove}
-        className="absolute top-2 right-2 h-6 w-6 p-0 rounded-full hover:bg-red-500/20 z-10"
+        className="absolute top-2 right-2 h-7 w-7 p-0 rounded-full hover:bg-red-500/20 text-muted-foreground hover:text-red-500 z-10 transition-colors"
         title={removeLabel}
       >
-        <X className="h-3 w-3" />
+        <X className="h-3.5 w-3.5" />
       </Button>
 
       <div className="pr-2">
-        <p className="text-xs sm:text-sm text-emerald-900 dark:text-emerald-100 leading-relaxed italic wrap-break-word">
-          ✨ {message}
-        </p>
+        <div className="flex items-start gap-2 mb-1">
+          <span className="text-lg flex-none mt-0.5">✨</span>
+          <p className="text-sm sm:text-base text-emerald-900 dark:text-emerald-50 leading-relaxed font-nunito flex-1">
+            {message}
+          </p>
+        </div>
         {chatModeAvailable && onContinueChat && (
           <Button
             size="sm"
             variant="ghost"
             onClick={onContinueChat}
-            className="mt-2 h-7 px-2 text-xs rounded-full hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+            className="mt-3 h-8 px-3 text-xs rounded-full hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-400/20 transition-all hover:border-emerald-400/40"
             title={chatLabel}
           >
-            <MessageSquare className="h-3 w-3 mr-1" />
-            <span>{chatLabel}</span>
+            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+            <span className="font-medium">{chatLabel}</span>
           </Button>
         )}
       </div>

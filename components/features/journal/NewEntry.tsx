@@ -78,19 +78,52 @@ export function NewEntry({ initialData }: EditorProps) {
   const [chatHistory, setChatHistory] = useState<
     Array<{ role: "user" | "ai"; content: string }>
   >([]);
+  const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
+  // const [modeLabels] = useState(() => ({
+  //   minimal:
+  //     MICROCOPIES.aiModes.minimal[
+  //       Math.floor(Math.random() * MICROCOPIES.aiModes.minimal.length)
+  //     ],
+  //   embedded:
+  //     MICROCOPIES.aiModes.embedded[
+  //       Math.floor(Math.random() * MICROCOPIES.aiModes.embedded.length)
+  //     ],
+  //   chat: MICROCOPIES.aiModes.chat[
+  //     Math.floor(Math.random() * MICROCOPIES.aiModes.chat.length)
+  //   ],
+  // }));
   const [modeLabels] = useState(() => ({
-    minimal:
-      MICROCOPIES.aiModes.minimal[
-        Math.floor(Math.random() * MICROCOPIES.aiModes.minimal.length)
-      ],
-    embedded:
-      MICROCOPIES.aiModes.embedded[
-        Math.floor(Math.random() * MICROCOPIES.aiModes.embedded.length)
-      ],
-    chat: MICROCOPIES.aiModes.chat[
-      Math.floor(Math.random() * MICROCOPIES.aiModes.chat.length)
-    ],
+    minimal: "Minimal Response",
+    embedded: "Embedded Response",
+    chat: "Chat Mode",
   }));
+
+  const modeConfig = {
+    minimal: {
+      label: "Minimal",
+      color: "from-blue-500 to-cyan-500",
+      bgColor: "bg-blue-500/10",
+      textColor: "text-blue-400",
+      borderColor: "border-blue-400/30",
+      emoji: "💭",
+    },
+    embedded: {
+      label: "Embedded",
+      color: "from-purple-500 to-pink-500",
+      bgColor: "bg-purple-500/10",
+      textColor: "text-purple-400",
+      borderColor: "border-purple-400/30",
+      emoji: "✨",
+    },
+    chat: {
+      label: "Chat",
+      color: "from-emerald-500 to-teal-500",
+      bgColor: "bg-emerald-500/10",
+      textColor: "text-emerald-400",
+      borderColor: "border-emerald-400/30",
+      emoji: "💬",
+    },
+  };
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -344,41 +377,64 @@ export function NewEntry({ initialData }: EditorProps) {
     ) => {
       if (!aiEnabled || isAiLoading) return;
 
+      console.log(
+        `[AI Companion] Fetching ${mode} response with displayMode: ${aiMode}`
+      );
+
       try {
         setIsAiLoading(true);
         const plainText = editor?.getText() || "";
         const wordCount = plainText.split(/\s+/).filter(Boolean).length;
         const emotionalWeight = analyzeEmotionalWeight(plainText);
 
+        const requestBody = {
+          mode,
+          content: content || plainText,
+          wordCount,
+          emotionalWeight,
+          displayMode: aiMode,
+        };
+
+        console.log("[AI Companion] Request body:", requestBody);
+
         const response = await fetch("/api/ai/companion", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode,
-            content: content || plainText,
-            wordCount,
-            emotionalWeight,
-          }),
+          body: JSON.stringify(requestBody),
         });
+
+        console.log("[AI Companion] Response status:", response.status);
 
         if (mode === "presence") {
           const data = await response.json();
+          console.log("[AI Companion] Presence response:", data.response);
           setAiPresence(data.response);
         } else if (mode === "acknowledgment") {
           const text = await response.text();
+          console.log("[AI Companion] Acknowledgment response:", text);
+          console.log("[AI Companion] Current aiMode:", aiMode);
 
           // Handle based on current AI mode
           if (aiMode === "embedded") {
+            console.log("[AI Companion] Adding to embedded messages");
             // Add to embedded messages
-            setEmbeddedMessages((prev) => [
-              ...prev,
-              {
-                id: Date.now().toString(),
-                message: text,
-                timestamp: new Date().toISOString(),
-              },
-            ]);
+            setEmbeddedMessages((prev) => {
+              const newMessages = [
+                ...prev,
+                {
+                  id: Date.now().toString(),
+                  message: text,
+                  timestamp: new Date().toISOString(),
+                },
+              ];
+              console.log(
+                "[AI Companion] Embedded messages updated:",
+                newMessages
+              );
+              return newMessages;
+            });
           } else {
+            console.log("[AI Companion] Setting minimal mode suggestion");
             // Minimal mode: show modal
             setAiSuggestion(text);
           }
@@ -433,23 +489,6 @@ export function NewEntry({ initialData }: EditorProps) {
     [aiEnabled, editor, isAiLoading, analyzeEmotionalWeight, aiMode]
   );
 
-  const handleTypingActivity = useCallback(() => {
-    if (!aiEnabled || !editor) return;
-
-    // Clear previous timer
-    if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current);
-    }
-
-    setTypingPaused(false);
-
-    // Set new pause detection timer (3 seconds)
-    typingTimerRef.current = setTimeout(() => {
-      setTypingPaused(true);
-      handlePauseDetected();
-    }, 3000);
-  }, [aiEnabled, editor]);
-
   const handlePauseDetected = useCallback(() => {
     if (!editor || !aiEnabled) return;
 
@@ -457,16 +496,28 @@ export function NewEntry({ initialData }: EditorProps) {
     const currentContent = plainText.trim();
     const wordCount = plainText.split(/\s+/).filter(Boolean).length;
 
+    console.log("[AI Companion] Pause detected. Word count:", wordCount);
+
     // Don't trigger if content hasn't changed or is too short
-    if (currentContent === lastContentRef.current || wordCount < 20) return;
+    if (currentContent === lastContentRef.current || wordCount < 20) {
+      console.log("[AI Companion] Skipping - content unchanged or too short");
+      return;
+    }
     lastContentRef.current = currentContent;
 
     const emotionalWeight = analyzeEmotionalWeight(plainText);
+    console.log("[AI Companion] Emotional weight:", emotionalWeight);
 
     // Show acknowledgment after pause (prioritize if heavy emotional weight)
     if (!aiSuggestion && !showReflectionOffer && !aiReflection) {
+      console.log(
+        "[AI Companion] Triggering acknowledgment with mode:",
+        aiMode
+      );
       // Trigger acknowledgment after any meaningful pause
       fetchAIResponse("acknowledgment");
+    } else {
+      console.log("[AI Companion] Skipping - already have AI content showing");
     }
 
     // Offer reflection if there's substantial content and multiple pauses
@@ -488,7 +539,25 @@ export function NewEntry({ initialData }: EditorProps) {
     lastWordCount,
     fetchAIResponse,
     analyzeEmotionalWeight,
+    aiMode,
   ]);
+
+  const handleTypingActivity = useCallback(() => {
+    if (!aiEnabled || !editor) return;
+
+    // Clear previous timer
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+    }
+
+    setTypingPaused(false);
+
+    // Set new pause detection timer (3 seconds)
+    typingTimerRef.current = setTimeout(() => {
+      setTypingPaused(true);
+      handlePauseDetected();
+    }, 3000);
+  }, [aiEnabled, editor, handlePauseDetected]);
 
   const requestReflection = useCallback(() => {
     setShowReflectionOffer(false);
@@ -533,6 +602,19 @@ export function NewEntry({ initialData }: EditorProps) {
       }
     };
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isModeDropdownOpen && !target.closest(".relative")) {
+        setIsModeDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isModeDropdownOpen]);
 
   return (
     <div className="h-full flex flex-col relative max-w-3xl mx-auto overflow-hidden">
@@ -596,6 +678,24 @@ export function NewEntry({ initialData }: EditorProps) {
               <EditorContent editor={editor} />
 
               {/* Embedded AI Messages - rendered inline within editor container */}
+              {(() => {
+                console.log(
+                  "[AI Companion] Render check - aiEnabled:",
+                  aiEnabled
+                );
+                console.log("[AI Companion] Render check - aiMode:", aiMode);
+                console.log(
+                  "[AI Companion] Render check - embeddedMessages:",
+                  embeddedMessages
+                );
+                console.log(
+                  "[AI Companion] Render check - should show?",
+                  aiEnabled &&
+                    aiMode === "embedded" &&
+                    embeddedMessages.length > 0
+                );
+                return null;
+              })()}
               {aiEnabled &&
                 aiMode === "embedded" &&
                 embeddedMessages.length > 0 && (
@@ -807,7 +907,7 @@ export function NewEntry({ initialData }: EditorProps) {
 
       {/* Fixed Bottom Toolbar */}
       <div className="flex-none py-3 sm:py-4 bg-background/50 backdrop-blur-sm z-50">
-        <div className="py-2 sm:py-3 px-2 sm:px-4 bg-background/80 backdrop-blur-md border border-white/5 rounded-full flex items-center gap-1 sm:gap-2 justify-center mx-auto w-[95%] max-w-2xl shadow-2xl overflow-x-auto custom-scrollbar">
+        <div className="py-2 sm:py-3 px-2 sm:px-4 bg-background/80 backdrop-blur-md border border-white/5 rounded-full flex items-center gap-1 sm:gap-2 justify-center mx-auto w-[95%] max-w-2xl shadow-2xl">
           <Button
             variant="ghost"
             size="icon"
@@ -867,28 +967,81 @@ export function NewEntry({ initialData }: EditorProps) {
             <ImageIcon className="h-4 w-4" />
           </Button>
           <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
-          {/* AI Mode Selector */}
+          {/* AI Mode Selector - Custom Dropdown */}
           {aiEnabled && (
-            <select
-              value={aiMode}
-              onChange={async (e) => {
-                const newMode = e.target.value as
-                  | "minimal"
-                  | "embedded"
-                  | "chat";
-                setAiMode(newMode);
-                await updatePreference("aiMode", newMode);
-                if (newMode === "chat") {
-                  setIsChatOpen(true);
-                }
-              }}
-              className="text-[10px] sm:text-xs bg-secondary/50 border border-white/10 rounded-full px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-secondary/70 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer shrink-0"
-              title="AI Interaction Mode"
-            >
-              <option value="minimal">{modeLabels.minimal}</option>
-              <option value="embedded">{modeLabels.embedded}</option>
-              <option value="chat">{modeLabels.chat}</option>
-            </select>
+            <div className="relative shrink-0 z-50">
+              <button
+                onClick={() => setIsModeDropdownOpen(!isModeDropdownOpen)}
+                className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border transition-all ${modeConfig[aiMode].bgColor} ${modeConfig[aiMode].borderColor} hover:scale-105 active:scale-95`}
+                title="AI Interaction Mode"
+              >
+                <span className="text-sm sm:text-base">
+                  {modeConfig[aiMode].emoji}
+                </span>
+                <span
+                  className={`text-[10px] sm:text-xs font-medium ${modeConfig[aiMode].textColor} hidden sm:inline`}
+                >
+                  {modeConfig[aiMode].label}
+                </span>
+                <ChevronDown
+                  className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${
+                    modeConfig[aiMode].textColor
+                  } transition-transform ${
+                    isModeDropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              <AnimatePresence>
+                {isModeDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute bottom-full mb-2 right-0 w-48 bg-background/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+                  >
+                    {(
+                      Object.keys(modeConfig) as Array<keyof typeof modeConfig>
+                    ).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={async () => {
+                          setAiMode(mode);
+                          await updatePreference("aiMode", mode);
+                          if (mode === "chat") {
+                            setIsChatOpen(true);
+                          }
+                          setIsModeDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors ${
+                          aiMode === mode ? modeConfig[mode].bgColor : ""
+                        }`}
+                      >
+                        <span className="text-xl">
+                          {modeConfig[mode].emoji}
+                        </span>
+                        <div className="flex-1 text-left">
+                          <div
+                            className={`text-sm font-semibold ${modeConfig[mode].textColor}`}
+                          >
+                            {modeConfig[mode].label}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {modeLabels[mode]}
+                          </div>
+                        </div>
+                        {aiMode === mode && (
+                          <div
+                            className={`w-2 h-2 rounded-full bg-gradient-to-r ${modeConfig[mode].color}`}
+                          />
+                        )}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
           <div className="w-px h-5 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
           <Button
