@@ -699,7 +699,7 @@ export function NewEntry({ initialData }: EditorProps) {
               {aiEnabled &&
                 aiMode === "embedded" &&
                 embeddedMessages.length > 0 && (
-                  <div className="space-y-4 mt-4">
+                  <div className="space-y-2 -mt-2">
                     {embeddedMessages.map((msg) => (
                       <EmbeddedAIMessage
                         key={msg.id}
