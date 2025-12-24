@@ -124,5 +124,16 @@ export const MICROCOPIES = {
  */
 export function getRandomMicrocopy(scenario: keyof typeof MICROCOPIES): string {
   const options = MICROCOPIES[scenario];
+  
+  // Handle nested objects (aiModes, aiActions)
+  if (typeof options === 'object' && !Array.isArray(options)) {
+    // For nested objects, return a random value from a random key
+    const keys = Object.keys(options) as Array<keyof typeof options>;
+    const randomKey = keys[Math.floor(Math.random() * keys.length)];
+    const nestedOptions = options[randomKey] as string[];
+    return nestedOptions[Math.floor(Math.random() * nestedOptions.length)];
+  }
+  
+  // Handle arrays
   return options[Math.floor(Math.random() * options.length)];
 }
